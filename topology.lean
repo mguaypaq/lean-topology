@@ -253,8 +253,6 @@ section subspace_topology
 parameters (X Y : Type) (TX : topology X) (i : Y → X)
   [decidable_eq (set X)] [decidable_eq (set Y)]
 
-#check X
-
 def inverse_image_opens := 
   {W : set Y | ∃ (U ∈ TX.opens), W = i ⁻¹' U}
 
@@ -500,7 +498,8 @@ end
 
 end closed_sets
 
--- REAL NUMBERS WITH STANDARD TOPOLOGY
+-- example:
+-- ℝ with the standard topology
 def ball (x ε : ℝ) := {y : ℝ | abs (y-x) < ε}
 
 lemma subset_of_le_eps_ball
@@ -521,34 +520,22 @@ end
 def standard_opens_ℝ := 
   {U : set ℝ | ∀ x ∈ U, ∃ ε > 0, set.subset (ball x ε) U}
 
-instance standard_topology_ℝ : topology ℝ :=
+lemma standard_basis_ℝ : pre_basis {W : set ℝ | ∃ x ε, W = ball x ε } :=
 begin
-  split, rotate 4,
-  { use standard_opens_ℝ,}, -- standard open sets
-  { unfold standard_opens_ℝ, simp,}, -- ∅ is open
-  { intros x _, use 1, split, linarith, -- ℝ is open
-    intros y hy, simp,},
-  { rintros U V hU hV x ⟨hxU, hxV⟩, -- intersections
-    rcases hU x hxU with ⟨εU, hεU, hεU'⟩,
-    rcases hV x hxV with ⟨εV, hεV, hεV'⟩,
-    use min εU εV,
-    split, exact lt_min hεU hεV,
-    apply set.subset_inter,
-    apply set.subset.trans _ hεU',
-    apply subset_of_le_eps_ball,
-    apply min_le_left,
-    apply set.subset.trans _ hεV',
-    apply subset_of_le_eps_ball,
-    apply min_le_right,
-    },
-  { intros sU hsU, -- unions
-    rintros x ⟨U, hUsU, hxU⟩,
-    obtain ⟨ε, hε, hεU⟩ := hsU hUsU x hxU,
-    use ε, split, exact hε,
-    suffices : U ⊆ ⋃₀ sU,
-    exact set.subset.trans hεU this,
-    intros y hy, use U, exact ⟨hUsU, hy⟩,
-  },
+  split,
+  ext, simp, use ball x 1, use x, use 1, unfold ball, simp,
+  rintros U V ⟨u, εu, hU⟩ ⟨v, εv, hV⟩ x hx,
+  let r := min (εu - abs (x - u)) (εv - abs (x - v)),
+  simp, use ball x r, use x, use r, unfold ball at *,
+  rw hU at *, rw hV at *, clear hU hV,
+  obtain ⟨hx1, hx2⟩ := hx, simp at *,
+  split, split, assumption, assumption,
+  split; intros a ha1 ha2,
+  linarith [abs_sub_le a x u],
+  linarith [abs_sub_le a x v],
 end
+
+instance standard_topology_ℝ : topology ℝ :=
+  topology_generated_by_basis standard_basis_ℝ
 
 end topology
