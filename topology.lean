@@ -15,7 +15,7 @@ Some set theory lemmas I couldn't find using library_search
   {t | ∀ a ∈ s, t ∈ a}
 prefix `⋂₀`:110 := finsInter
 
-def finsInter_coe {X : Type} (s : finset (set X)) :
+lemma finsInter_coe {X : Type} (s : finset (set X)) :
   ⋂₀ s = ⋂₀ (s : set (set X)) :=
 begin
   ext, split, simp, simp,
@@ -25,13 +25,13 @@ end
   {t | ∃ a ∈ s, t ∈ a}
 prefix `⋃₀`:110 := finsUnion
 
-def finsUnion_coe {X : Type} (s : finset (set X)) :
+lemma finsUnion_coe {X : Type} (s : finset (set X)) :
   ⋃₀ s = ⋃₀ (s : set (set X)) :=
 begin
   ext, split; {intro hx, simp at *, exact hx,},
 end
 
-def finsInter_combined {X : Type} (s t : finset (set X)) [decidable_eq (set X)] : 
+lemma finsInter_combined {X : Type} (s t : finset (set X)) [decidable_eq (set X)] : 
   ⋂₀ (s ∪ t) = (⋂₀ s) ∩ (⋂₀ t) :=
 begin
   rw finsInter_coe s,
@@ -55,14 +55,15 @@ class topology (X : Type) :=
 (union : ∀ (sU : set (set X)),
   (sU ⊆ opens) → ⋃₀ sU ∈ opens)
 
-parameters {X : Type} [T : topology X] [decidable_eq (set X)]
+parameters {X : Type} [T : topology X]
 
-@[simp] def is_open (U : set X) := U ∈ T.opens
+@[simp]
+def is_open (U : set X) := U ∈ T.opens
 
 -- can this be given useful coercions? I haven't used this.
 def nbhd (x : X) (U : set X) := U ∈ T.opens ∧ x ∈ U
 
-lemma open_of_inter_of_finset (sU : finset (set X)) :
+lemma open_of_inter_of_finset [decidable_eq (set X)] (sU : finset (set X)) :
   (↑sU ⊆ T.opens) → ⋂₀ sU ∈ T.opens :=
 begin
   intro h_opens,
@@ -78,35 +79,48 @@ begin
   exact topology.inter₂ U (⋂₀ sU) U_open inter_sU_open,
 end
 
+lemma open_if_open_around_mem (A : set X) : A ∈ T.opens ↔
+  ∀ x ∈ A, ∃ U, nbhd x U ∧ U ⊆ A :=
+begin
+  split, intros hA x hx, use A, exact ⟨⟨hA, hx⟩, by tauto⟩,
+  intro hA,
+  suffices : A = ⋃₀ {U | U ∈ T.opens ∧ U ⊆ A},
+  rw this, apply T.union, rw set.set_of_and, simp,
+  ext x, specialize hA x, unfold nbhd at hA, simp at *,
+  conv
+  begin
+    to_rhs, congr, funext,
+    rw and_assoc,
+    rw and_comm (a ⊆ A) _, rw ← and_assoc,
+  end,
+  split, exact hA,
+  rintro ⟨U, hU⟩, apply hU.2, exact hU.1.2,
+end
+
 def basis (B : set (set X)) :=
   B ⊆ T.opens ∧ ∀ (U ∈ T.opens) (x ∈ U), ∃ W ∈ B, x ∈ W ∧ W ⊆ U
 
 def pre_basis {Y : Type} (B : set (set Y)) :=
   ⋃₀ B = set.univ ∧ ∀ (U V ∈ B) (x ∈ U ∩ V), ∃ W ∈ B, x ∈ W ∧ W ⊆ U ∩ V
 
-def topology_generated_by_basis {Y : Type} {B : set (set Y)} :
-  pre_basis B → (topology Y) :=
-begin
-  intro h,
-  use {U : set Y | ∀ (x ∈ U), ∃ W ∈ B, x ∈ W ∧ W ⊆ U},
-  intros x hx, exfalso, exact hx, -- ∅
-  intros x hx, rw ← h.1 at hx, -- X
-  obtain ⟨W, hW, hxW⟩ := hx,
-  use W, split, exact hW, split, exact hxW, simp,
-  intros U V hU hV x hx, -- intersections...
-  obtain ⟨U0, hU0, hxU0⟩ := hU x hx.1, clear hU,
-  obtain ⟨V0, hV0, hxV0⟩ := hV x hx.2, clear hV,
-  obtain ⟨W, hW, hxW⟩ := h.2 U0 V0 hU0 hV0 x (by exact ⟨hxU0.1, hxV0.1⟩),
-  use W, split, exact hW, split, exact hxW.1,
-  suffices : (U0 ∩ V0) ⊆ (U ∩ V),
-  apply set.subset.trans hxW.2 this,
-  exact set.inter_subset_inter hxU0.2 hxV0.2, -- ... done.
-  intros sU hsU x hx, -- unions...
-  obtain ⟨U, hU, hxU⟩ := hx,
-  obtain ⟨W, hW, hxW⟩ :=  hsU hU x hxU, clear hsU,
-  use W, split, exact hW, split, exact hxW.1,
-  intros w hw, use U, split, assumption, exact hxW.2 hw, -- ... done.
-end
+def topology_generated_by_basis {Y : Type} {B : set (set Y)}
+  (hB : pre_basis B) : (topology Y) :=
+⟨ {U : set Y | ∀ (x ∈ U), ∃ W ∈ B, x ∈ W ∧ W ⊆ U},
+  λ x hx, false.rec _ hx,
+  λ x hx,
+    let ⟨W, hW, hxW⟩ := @eq.substr _ _ _ _ hB.1 hx in
+    ⟨W, hW, hxW, by simp⟩,
+  λ U V hU hV x hx,
+    let ⟨U0, hU0, hxU0⟩ := hU x hx.1 in
+    let ⟨V0, hV0, hxV0⟩ := hV x hx.2 in
+    let ⟨W, hW, hxW⟩ := hB.2 U0 V0 hU0 hV0 x ⟨hxU0.1, hxV0.1⟩ in
+    let key := set.inter_subset_inter hxU0.2 hxV0.2 in
+    ⟨W, hW, hxW.1, set.subset.trans hxW.2 key⟩,
+  λ sU hsU x hx,
+    let ⟨U, hU, hxU⟩ := hx in
+    let ⟨W, hW, hxW⟩ :=  hsU hU x hxU in
+    ⟨W, hW, hxW.1, (λ w hw, ⟨U, hU, hxW.2 hw⟩)⟩,
+⟩
 
 lemma union_of_basis_of_open (B : set (set X)) : basis B → ∀ U ∈ T.opens,
   U = ⋃₀ {W : set X | W ∈ B ∧ W ⊆ U} :=
@@ -120,7 +134,8 @@ begin
   intros W hW, exact hW.2,
 end
 
-def pre_basis_of_subbasis (S : set (set X)) (hS : ⋃₀ S = set.univ) :
+lemma pre_basis_of_subbasis [decidable_eq (set X)]
+  (S : set (set X)) (hS : ⋃₀ S = set.univ) :
   pre_basis {W : set X | ∃ sU : finset (set X), ↑sU ⊆ S ∧ W = ⋂₀ sU} :=
 begin
   split,
@@ -176,133 +191,9 @@ end
 
 end topology
 
-section constructing_topology
-
-lemma basis_is_basis_of_generated {Y : Type} {B : set (set Y)} (hB : pre_basis B)
-  (heq : decidable_eq (set Y)) : @basis Y (topology_generated_by_basis hB) heq B :=
-begin
-  split, tauto, tauto,
-end
-
-section product_topology
-
-parameters {X Y : Type} (TX : topology X) (TY : topology Y)
-  [decidable_eq (set X)] [decidable_eq (set Y)] [decidable_eq (set (X × Y))]
-
-def pre_basis_for_product_topology :
-  pre_basis {U : set (X × Y) | ∃ (UX ∈ TX.opens), ∃ (UY ∈ TY.opens),
-    (set.prod UX UY) = U} :=
-begin
-  split, ext, simp, use set.univ, simp,
-  use @set.univ X, split, exact TX.univ_open,
-  use @set.univ Y, split, exact TY.univ_open,
-  clear x TX TY,
-  simp,
-  rintros U V ⟨UX, hUX, ⟨UY, hUY, hUU⟩⟩ ⟨VX, hVX, ⟨VY, hVY, hVV⟩⟩ p hp,
-  use (UX ∩ VX).prod (UY ∩ VY), split,
-  use (UX ∩ VX), split,
-  exact topology.inter₂ UX VX hUX hVX,
-  use (UY ∩ VY), split,
-  exact topology.inter₂ UY VY hUY hVY, refl,
-  rw [← hUU, ← hVV] at *,
-  clear hVX hVY hUX hUY TX TY hUU hVV,
-  rw set.prod_inter_prod at *, exact ⟨hp, by tauto⟩,
-end
-
-instance product_topology : topology (X × Y) := 
-  topology_generated_by_basis (pre_basis_for_product_topology)
-
-lemma basis_around_point (U : set (X × Y)) (hU : U ∈ product_topology.opens) 
-  (p : (X × Y)) (hp : p ∈ U) : ∃ (UX ∈ TX.opens), ∃ (UY ∈ TY.opens),
-   p ∈ (set.prod UX UY) ∧ (set.prod UX UY) ⊆ U :=
-begin
-  have h := basis_is_basis_of_generated (pre_basis_for_product_topology TX TY) _,
-  obtain ⟨W, ⟨UX, hUX, UY, hUY, hUU⟩, ⟨hpW, hWU⟩⟩ := h.2 U hU p hp,
-  use UX, split, exact hUX, use UY, clear h hU, finish, assumption,
-end
-
-lemma product_of_bases_is_basis (BX : set (set X)) (BY : set (set Y)) :
-  @basis X TX _ BX → @basis Y TY _ BY → 
-  @basis (X × Y) product_topology _ 
-    {U : set (X × Y) | ∃ (UX ∈ BX), ∃ (UY ∈ BY), (set.prod UX UY) = U} :=
-begin
-  intros hBX hBY,
-  split,
-  rintros U ⟨UX, hUX, ⟨UY, hUY, hprod⟩⟩,
-  intros x hx, use UX.prod UY, split,
-  use UX, split, exact hBX.1 hUX,
-  use UY, split, exact hBY.1 hUY,
-  refl,
-  split; rwa hprod,
-  intros U hU p hp,
-  obtain ⟨UX, hUX, ⟨UY, hUY, hp_prod, hprodU⟩⟩ := basis_around_point _ _ U hU p hp,
-  obtain ⟨UX', hUX', hUX''⟩ := hBX.2 UX hUX p.fst hp_prod.1,
-  obtain ⟨UY', hUY', hUY''⟩ := hBY.2 UY hUY p.snd hp_prod.2,
-  use UX'.prod UY', split, rotate,
-  split, exact ⟨hUX''.1, hUY''.1⟩,
-  apply set.subset.trans _ hprodU,
-  exact set.prod_mono hUX''.2 hUY''.2,
-  use UX', split, exact hUX', use UY', split, exact hUY', refl,
-end
-
-end product_topology
-
-section subspace_topology
-
--- no need to assume Y is literally a subspace
-parameters (X Y : Type) (TX : topology X) (i : Y → X)
-  [decidable_eq (set X)] [decidable_eq (set Y)]
-
-def inverse_image_opens := 
-  {W : set Y | ∃ (U ∈ TX.opens), W = i ⁻¹' U}
-
---(inter₂ : ∀ (U V : set X),
---  (U ∈ opens) → (V ∈ opens) → set.inter U V ∈ opens)
---(union : ∀ (sU : set (set X)),
---  (sU ⊆ opens) → ⋃₀ sU ∈ opens)
-
-lemma open_inter_of_preimage (U V : set Y) : 
-  U ∈ inverse_image_opens → V ∈ inverse_image_opens → U ∩ V ∈ inverse_image_opens :=
-begin
-  rintros ⟨U', hU', hU''⟩ ⟨V', hV', hV''⟩,
-  exact ⟨U' ∩ V', ⟨topology.inter₂ U' V' hU' hV',
-                   by rw [set.preimage_inter, hU'', hV'']⟩⟩,
-end
-
-lemma open_union_of_preimage (sU : set (set Y)) : 
-  (sU ⊆ inverse_image_opens) → ⋃₀ sU ∈ inverse_image_opens :=
-begin
-  rintros hsU,
-  let sV := {V : set X | V ∈ TX.opens ∧ i ⁻¹' V ∈ sU},
-  use ⋃₀ sV,
-  split, exact topology.union _ (λ _ hV, hV.1),
-  suffices : (set.preimage i) '' sV = sU,
-  rw ← this, simp,
-  ext U, split, rintro ⟨V, hV, hV'⟩, rw ← hV', exact hV.2,
-  intro hU, obtain ⟨V, hV, hV'⟩ := hsU hU,
-  use V, split, split, exact hV, rw ← hV', exact hU, rw hV',
-end
-
-instance inverse_image_topology : topology Y := ⟨
-  inverse_image_opens,
-  ⟨∅, ⟨topology.empty_open, by refl⟩⟩,
-  ⟨set.univ, ⟨topology.univ_open, by refl⟩⟩,
-  open_inter_of_preimage,
-  open_union_of_preimage,
-⟩
-
-/- 
-Should we distinguish between the inverse image topology and the
-subspace topology? And how?
--/
-
-end subspace_topology
-
-end constructing_topology
-
 section closed_sets
 
-parameters {X : Type} (TX : topology X) [decidable_eq (set X)]
+parameters {X : Type} (TX : topology X)
 
 @[simp] def closed (C : set X) := set.compl C ∈ TX.opens
 
@@ -320,7 +211,7 @@ begin
   apply topology.inter₂,
 end
 
-lemma closed_of_union_of_finset (sC : finset (set X)) :
+lemma closed_of_union_of_finset [decidable_eq (set X)] (sC : finset (set X)) :
   ↑(finset.image compl sC) ⊆ TX.opens → closed ⋃₀ sC :=
 begin
   rw finsUnion_coe, dsimp,
@@ -382,7 +273,7 @@ begin
 end
 
 -- interiors
-def interior (A : set X)  := ⋃₀ {U : set X | @is_open X TX _ U ∧ U ⊆ A}
+def interior (A : set X)  := ⋃₀ {U : set X | @is_open X TX U ∧ U ⊆ A}
 
 -- would it be better to prove the subsequent lemmas
 -- from this one + the corresponding closure lemmas?
@@ -430,7 +321,7 @@ begin
     { apply interior_subset_self,},
   intro h, apply set.subset.antisymm,
   apply open_subset_interior, exact h.2,
-  apply h.1 (@interior X TX _ A),
+  apply h.1 (@interior X TX A),
   split, apply interior_is_open, apply interior_subset_self,
 end
 
@@ -454,24 +345,25 @@ end
 
 -- limit points and elementwise properties of closures
 
-def accumulation_point (C : set X) (x : X) [topology X] :=
-  (∀ U, nbhd x U → set.nonempty (U ∩ C ∩ {x}ᶜ))
+def accumulation_point (C : set X) (x : X) :=
+  (∀ U, @nbhd X TX x U → set.nonempty (U ∩ C ∩ {x}ᶜ))
 
-def isolated_point (C : set X) (x : X) [topology X] :=
-  ∃ U, nbhd x U ∧ U ∩ C = {x}
+def isolated_point (C : set X) (x : X) :=
+  ∃ U, @nbhd X TX x U ∧ U ∩ C = {x}
 
-lemma mem_interior (A : set X) (x : X) : x ∈ interior A ↔
-  (∃ U ∈ TX.opens, x ∈ U ∧ U ⊆ A) :=
+lemma mem_interior (A : set X) : interior A = 
+  {x | ∃ U ∈ TX.opens, x ∈ U ∧ U ⊆ A} :=
 begin
-  unfold interior, simp, tauto,
+  ext x, unfold interior, simp, tauto,
 end
 
-lemma mem_closure (A : set X) (y : X) : y ∈ closure A ↔ 
-  ∀ U ∈ TX.opens, y ∈ U → set.nonempty (U ∩ A) :=
+lemma mem_closure (A : set X) : closure A =
+  {y | ∀ U ∈ TX.opens, y ∈ U → set.nonempty (U ∩ A)} :=
 begin
+  ext y,
   rw closure_compl_interior_compl,
   rw ← not_iff_not, simp, rw mem_interior,
-  conv
+  conv -- rewrite ¬(U ∩ A).nonempty to U subseteq Aᶜ
   begin
     to_rhs, congr, funext,
     rw set.not_nonempty_iff_eq_empty,
@@ -497,6 +389,316 @@ begin
 end
 
 end closed_sets
+
+section cts_fn
+
+variables {X Y : Type} (TX : topology X) (TY : topology Y)
+
+def cts (f : X → Y) := ∀ V ∈ TY.opens, f ⁻¹' V ∈ TX.opens
+
+lemma cts_of_comp {Z : Type} (TZ : topology Z) (f : X → Y) (g : Y → Z) :
+  cts TY TZ g → cts TX TY f → cts TX TZ (g ∘ f) :=
+begin
+  intros hf hg W hW, rw set.preimage_comp,
+  apply hg, apply hf, exact hW,
+end
+
+def ptwise_cts (f : X → Y) (x : X) :=
+  ∀ V ∈ TY.opens, f x ∈ V → ∃ U ∈ TX.opens, (f '' U) ⊆ V ∧ x ∈ U
+
+lemma cts_of_closed_iff (f : X → Y) : cts TX TY f ↔ 
+  ∀ C, closed TY C → closed TX (f ⁻¹' C) :=
+begin
+  split,
+  { intros hf C hC,
+    simp at *,
+    rw ← set.preimage_compl, exact hf Cᶜ hC,},
+  { intros hf U hU,
+    simp at *,
+    specialize hf Uᶜ, rw compl_compl at hf,
+    specialize hf hU,
+    rwa [set.preimage_compl, compl_compl] at hf,
+  },
+end
+
+lemma cts_iff_ptwise_cts (f : X → Y) : cts TX TY f ↔
+  ∀ (x : X), ptwise_cts TX TY f x :=
+begin
+  split,
+  { intros hf x V hV hxV,
+    exact ⟨f ⁻¹' V, hf V hV, by simp, hxV⟩, },
+  { intros hf U hU,
+    apply (@open_if_open_around_mem X TX _).mpr,
+    intros x hx,
+    obtain ⟨V, ⟨hV1, hV2, hxV⟩⟩ := hf x U hU hx,
+    use V, exact ⟨⟨hV1, hxV⟩, by rwa ← set.image_subset_iff⟩,
+    },
+end
+
+def open_immersion (f : X → Y) := cts TX TY f ∧ function.injective f 
+  ∧ f '' set.univ ∈ TY.opens
+
+end cts_fn
+
+section constructing_topology
+
+lemma basis_is_basis_of_generated {Y : Type} {B : set (set Y)} (hB : pre_basis B) :
+  @basis Y (topology_generated_by_basis hB) B :=
+begin
+  split, tauto, tauto,
+end
+
+section product_topology
+
+parameters {X Y : Type} (TX : topology X) (TY : topology Y)
+
+lemma pre_basis_for_product_topology :
+  pre_basis {U : set (X × Y) | ∃ (UX ∈ TX.opens) (UY ∈ TY.opens),
+    (set.prod UX UY) = U} :=
+begin
+  split, ext, simp, use set.univ, simp,
+  use @set.univ X, split, exact TX.univ_open,
+  use @set.univ Y, split, exact TY.univ_open,
+  clear x TX TY,
+  simp,
+  rintros U V ⟨UX, hUX, ⟨UY, hUY, hUU⟩⟩ ⟨VX, hVX, ⟨VY, hVY, hVV⟩⟩ p hp,
+  use (UX ∩ VX).prod (UY ∩ VY), split,
+  use (UX ∩ VX), split,
+  exact topology.inter₂ UX VX hUX hVX,
+  use (UY ∩ VY), split,
+  exact topology.inter₂ UY VY hUY hVY, refl,
+  rw [← hUU, ← hVV] at *,
+  clear hVX hVY hUX hUY TX TY hUU hVV,
+  rw set.prod_inter_prod at *, exact ⟨hp, by tauto⟩,
+end
+
+instance product_topology : topology (X × Y) := 
+  topology_generated_by_basis (pre_basis_for_product_topology)
+
+lemma basis_around_point (U : set (X × Y)) (hU : U ∈ product_topology.opens) 
+  (p : (X × Y)) (hp : p ∈ U) : 
+  ∃ (UX ∈ TX.opens) (UY ∈ TY.opens), p ∈ (set.prod UX UY) ∧ (set.prod UX UY) ⊆ U :=
+begin
+  have h := basis_is_basis_of_generated (pre_basis_for_product_topology TX TY),
+  obtain ⟨W, ⟨UX, hUX, UY, hUY, hUU⟩, ⟨hpW, hWU⟩⟩ := h.2 U hU p hp,
+  use UX, split, exact hUX, use UY, clear h hU,
+  split, exact hUY, split, rwa hUU, rwa hUU,
+end
+
+lemma product_of_bases_is_basis (BX : set (set X)) (BY : set (set Y)) :
+  @basis X TX BX → @basis Y TY BY → 
+  @basis (X × Y) product_topology 
+    {U : set (X × Y) | ∃ (UX ∈ BX) (UY ∈ BY), (set.prod UX UY) = U} :=
+begin
+  intros hBX hBY,
+  split,
+  rintros U ⟨UX, hUX, ⟨UY, hUY, hprod⟩⟩,
+  intros x hx, use UX.prod UY, split,
+  use UX, split, exact hBX.1 hUX,
+  use UY, split, exact hBY.1 hUY,
+  refl,
+  split; rwa hprod,
+  intros U hU p hp,
+  obtain ⟨UX, hUX, ⟨UY, hUY, hp_prod, hprodU⟩⟩ := basis_around_point _ _ U hU p hp,
+  obtain ⟨UX', hUX', hUX''⟩ := hBX.2 UX hUX p.fst hp_prod.1,
+  obtain ⟨UY', hUY', hUY''⟩ := hBY.2 UY hUY p.snd hp_prod.2,
+  use UX'.prod UY', split, rotate,
+  split, exact ⟨hUX''.1, hUY''.1⟩,
+  apply set.subset.trans _ hprodU,
+  exact set.prod_mono hUX''.2 hUY''.2,
+  use UX', split, exact hUX', use UY', split, exact hUY', refl,
+end
+
+#check (topology.product_topology)
+
+example (U : set X) : @prod.fst X Y ⁻¹' U = set.prod U set.univ :=
+begin
+  ext x, simp,
+end
+
+lemma prod_fst_cts : cts product_topology TX prod.fst :=
+begin
+  intros UX hUX x hx, use prod.fst ⁻¹' UX,
+  split, exact ⟨UX, hUX, set.univ, TY.univ_open, by {ext, simp}⟩,
+  tauto,
+end
+
+lemma prod_snd_cts : cts product_topology TY prod.snd :=
+begin
+  intros UY hUY y hy, use prod.snd ⁻¹' UY,
+  split, exact ⟨set.univ, TX.univ_open, UY, hUY, by {ext, simp}⟩,
+  tauto,
+end
+
+lemma cts_to_prod {Z : Type} (TZ : topology Z) (f : Z → X × Y) :
+  cts TZ product_topology f ↔
+  cts TZ TX (prod.fst ∘ f) ∧ cts TZ TY (prod.snd ∘ f) :=
+begin
+  split, intro hf, split;
+  apply @cts_of_comp _ _ _ (topology.product_topology) _ _ f,
+    apply prod_fst_cts, exact hf,
+    apply prod_snd_cts, exact hf,
+  intros hf U hU,
+  rw open_if_open_around_mem, intros z hz,
+  obtain ⟨W, ⟨UX, hUX, ⟨UY, hUY, hprod⟩⟩, ⟨hx1, hx2⟩⟩ := hU (f z) hz,
+  use ((prod.fst ∘ f) ⁻¹' UX) ∩ ((prod.snd ∘ f) ⁻¹' UY),
+  split, split, apply topology.inter₂,
+    apply hf.1, exact hUX,
+    apply hf.2, exact hUY,
+  simp, rw ← hprod at hx1, exact hx1,
+  rw set.preimage_comp, rw @set.preimage_comp _ _ _ f prod.snd,
+  rw ← set.preimage_inter, rw ← hprod at hx2,
+  apply set.preimage_mono,
+  apply set.subset.trans _ hx2, tauto,
+end
+
+end product_topology
+
+section inverse_image_topology
+
+-- consider generalizing to "limit topology"?
+
+variables {X Y : Type} (TX : topology X) (i : Y → X)
+
+@[simp]
+def inverse_image_opens := 
+  {W : set Y | ∃ (U ∈ TX.opens), W = i ⁻¹' U}
+
+#check inverse_image_opens
+
+lemma inverse_image_open_of_open (U : set X) :
+  U ∈ TX.opens → i ⁻¹' U ∈ inverse_image_opens TX i :=
+begin
+  simp, intro hU, exact ⟨U, hU, by simp⟩,
+end
+
+lemma open_inter_of_preimage (U V : set Y) : 
+  U ∈ inverse_image_opens TX i → V ∈ inverse_image_opens TX i →
+  U ∩ V ∈ inverse_image_opens TX i :=
+begin
+  rintros ⟨U', hU', hU''⟩ ⟨V', hV', hV''⟩,
+  exact ⟨U' ∩ V', ⟨topology.inter₂ U' V' hU' hV',
+                   by rw [set.preimage_inter, hU'', hV'']⟩⟩,
+end
+
+lemma open_union_of_preimage (sU : set (set Y)) : 
+  (sU ⊆ inverse_image_opens TX i) → ⋃₀ sU ∈ inverse_image_opens TX i :=
+begin
+  rintros hsU,
+  let sV := {V : set X | V ∈ TX.opens ∧ i ⁻¹' V ∈ sU},
+  use ⋃₀ sV,
+  split, exact topology.union _ (λ _ hV, hV.1),
+  suffices : (set.preimage i) '' sV = sU,
+  rw ← this, simp,
+  ext U, split, rintro ⟨V, hV, hV'⟩, rw ← hV', exact hV.2,
+  intro hU, obtain ⟨V, hV, hV'⟩ := hsU hU,
+  use V, split, split, exact hV, rw ← hV', exact hU, rw hV',
+end
+
+instance inverse_image_topology : topology Y := ⟨
+  topology.inverse_image_opens TX i,
+  ⟨∅, ⟨topology.empty_open, by refl⟩⟩,
+  ⟨set.univ, ⟨topology.univ_open, by refl⟩⟩,
+  open_inter_of_preimage TX i,
+  open_union_of_preimage TX i,
+⟩
+
+lemma pullback_cts_along_inverse_image (Z : Type) (TZ : topology Z) (f : X → Z):
+  cts TX TZ f →
+  cts (topology.inverse_image_topology TX i) TZ (f ∘ i) :=
+begin
+  intros hf V hV,
+  have h := hf V hV,
+  change i ⁻¹' (f ⁻¹' V) ∈ topology.opens,
+  apply inverse_image_open_of_open, exact h,
+end
+
+end inverse_image_topology
+
+section subspace_topology
+
+variables {X : Type} (TX : topology X) (A : set X)
+
+instance subspace_topology : topology A :=
+  topology.inverse_image_topology TX (λ a, a.val)
+
+instance : has_coe (topology X) (topology A) :=
+  ⟨λ TX, topology.subspace_topology TX A⟩
+
+@[simp] def to_sub : set X → set A := λ U, {x : A | x.val ∈ U}
+@[simp] def from_sub : set A → set X := λ U', {x : X | ∃ hx : x ∈ A, (⟨x, hx⟩ : A) ∈ U'}
+
+lemma to_sub_eq_inter (V : set X) : to_sub A V = to_sub A (A ∩ V) :=
+begin
+  ext ⟨x, hx⟩, split; intro hx', exact ⟨hx, hx'⟩, exact hx'.2,
+end
+
+lemma from_sub_subset_self (U : set A) : from_sub A U ⊆ A :=
+begin
+  rintros x ⟨hx, _⟩, exact hx,
+end
+
+@[simp]
+lemma from_sub_to_sub_eq_inter (V : set X) : from_sub A (to_sub A V) = A ∩ V :=
+begin
+  ext x, simp, tauto,
+end
+
+-- simp already finds this
+lemma to_sub_from_sub_eq_self (U : set A) : to_sub A (from_sub A U) = U := by simp
+
+lemma image_of_from_sub {Y : Type} (f : X → Y) (U : set A) :
+  subtype.restrict f A '' U = f '' from_sub A U :=
+begin
+  ext y, split; simp; tauto,
+end
+
+lemma image_of_to_sub {Y : Type} (f : X → Y) (U : set X) :
+  subtype.restrict f A '' to_sub A U = f '' (A ∩ U) :=
+begin
+  ext y, split; simp; tauto,
+end
+
+lemma to_sub_open_iff (U' : set A) :
+  U' ∈ (TX : topology A).opens ↔ ∃ U ∈ TX.opens, U' = to_sub A U :=
+begin
+  split, tauto, rintro ⟨U, hU, hU'⟩,
+  rw hU', simp, apply inverse_image_open_of_open, exact hU,
+end
+
+lemma from_sub_open_iff (hA : A ∈ TX.opens) (U' : set A) :
+  U' ∈ (TX : topology A).opens ↔ from_sub A U' ∈ TX.opens :=
+begin
+  rw to_sub_open_iff, split,
+  { rintro ⟨U, hU, hU'⟩,  rw [hU', from_sub_to_sub_eq_inter],
+    exact topology.inter₂ _ _ hA hU},
+  intro h, use from_sub A U', rw to_sub_from_sub_eq_self, exact ⟨h, by simp⟩,
+end
+
+lemma cts_at_pt_of_open {Y : Type} (TY : topology Y)
+  (f : X → Y)
+  (U : set X) (hU : U ∈ TX.opens)
+  (x : X) (hxU : x ∈ U) :
+  ptwise_cts TX TY f x ↔
+  ptwise_cts (TX : topology U) TY (subtype.restrict f U) ⟨x, hxU⟩ :=
+begin
+  split;
+  intros hf V hV hfxV;
+  obtain ⟨U', hU', hU'V, hxU'⟩ := hf V hV hfxV,
+  use (to_sub U U'),
+  split, simp, rw to_sub_open_iff, exact ⟨U', hU', by simp⟩,
+  split, rw image_of_to_sub,
+  exact set.subset.trans (set.image_subset f (set.inter_subset_right U U')) hU'V,
+  exact hxU',
+  use from_sub U U',
+  split, rw ← from_sub_open_iff TX U hU, exact hU',
+  split, rw ← image_of_from_sub, exact hU'V,
+  exact ⟨hxU, hxU'⟩,
+end
+
+end subspace_topology
+
+end constructing_topology
 
 -- example:
 -- ℝ with the standard topology
