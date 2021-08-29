@@ -55,7 +55,7 @@ class topology (X : Type) :=
 (union : ∀ (sU : set (set X)),
   (sU ⊆ opens) → ⋃₀ sU ∈ opens)
 
-parameters {X : Type} [T : topology X]
+variables {X : Type} [T : topology X]
 
 @[simp]
 def is_open (U : set X) := U ∈ T.opens
@@ -397,10 +397,10 @@ variables {X Y : Type} (TX : topology X) (TY : topology Y)
 def cts (f : X → Y) := ∀ V ∈ TY.opens, f ⁻¹' V ∈ TX.opens
 
 lemma cts_of_comp {Z : Type} (TZ : topology Z) (f : X → Y) (g : Y → Z) :
-  cts TY TZ g → cts TX TY f → cts TX TZ (g ∘ f) :=
+  cts TX TY f → cts TY TZ g → cts TX TZ (g ∘ f) :=
 begin
   intros hf hg W hW, rw set.preimage_comp,
-  apply hg, apply hf, exact hW,
+  apply hf, apply hg, exact hW,
 end
 
 def ptwise_cts (f : X → Y) (x : X) :=
@@ -440,6 +440,48 @@ def open_immersion (f : X → Y) := cts TX TY f ∧ function.injective f
 
 end cts_fn
 
+section homeo
+
+variables {X Y Z : Type} (TX : topology X) (TY : topology Y) (TZ : topology Z)
+
+def homeo (f : X → Y) :=
+  cts TX TY f ∧ ∃ (g : Y → X) (hg : cts TY TX g),
+    function.left_inverse g f ∧ function.right_inverse g f
+
+lemma homeo_iff (f : X → Y) : homeo TX TY f ↔
+  cts TX TY f ∧ function.bijective f ∧ (∀ U, (U ∈ TX.opens) → f '' U ∈ TY.opens) :=
+begin
+  split, rintro ⟨hf, g, hg, hg'⟩,
+    split, exact hf,
+    split, rw function.bijective_iff_has_inverse, exact ⟨g, hg'⟩,
+    intros U hU,
+    suffices : f '' U = g ⁻¹' U,
+    rw this, apply hg, exact hU,
+    rw set.image_eq_preimage_of_inverse hg'.1 hg'.2,
+  rintro ⟨hf, hbij, hf_open_map⟩,
+  split, exact hf,
+  obtain ⟨g, hg'⟩ := function.bijective_iff_has_inverse.mp hbij,
+  have hg : cts TY TX g,
+    intros U hU,
+    suffices : f '' U = g ⁻¹' U,
+    rw ← this, apply hf_open_map, exact hU,
+    rw set.image_eq_preimage_of_inverse hg'.1 hg'.2,
+  exact ⟨g, hg, hg'⟩,   
+end
+
+lemma homeo_comp (f : X → Y) (g : Y → Z) :
+  homeo TX TY f → homeo TY TZ g → homeo TX TZ (g  ∘ f) :=
+begin
+  rintros ⟨hf, finv, hfinv, hfinv'⟩ ⟨hg, ginv, hginv, hginv'⟩,
+  split, exact cts_of_comp _ _ _ f g hf hg,
+  use finv ∘ ginv,
+  split, exact cts_of_comp _ _ _ ginv finv hginv hfinv,
+  exact ⟨function.left_inverse.comp hginv'.1 hfinv'.1,
+         function.right_inverse.comp hginv'.2 hfinv'.2⟩,
+end
+
+end homeo
+
 section constructing_topology
 
 lemma basis_is_basis_of_generated {Y : Type} {B : set (set Y)} (hB : pre_basis B) :
@@ -450,7 +492,7 @@ end
 
 section product_topology
 
-parameters {X Y : Type} (TX : topology X) (TY : topology Y)
+variables {X Y : Type} (TX : topology X) (TY : topology Y)
 
 lemma pre_basis_for_product_topology :
   pre_basis {U : set (X × Y) | ∃ (UX ∈ TX.opens) (UY ∈ TY.opens),
@@ -473,9 +515,15 @@ begin
 end
 
 instance product_topology : topology (X × Y) := 
-  topology_generated_by_basis (pre_basis_for_product_topology)
+  topology_generated_by_basis (pre_basis_for_product_topology TX TY)
 
-lemma basis_around_point (U : set (X × Y)) (hU : U ∈ product_topology.opens) 
+instance topologies_to_product_topology :
+  has_coe ((topology X) × (topology Y)) (topology (X × Y)) :=
+  ⟨λ T_pair, topology.product_topology T_pair.1 T_pair.2⟩
+
+lemma basis_around_point
+  (U : set (X × Y))
+  (hU : U ∈ (topology.product_topology TX TY).opens) 
   (p : (X × Y)) (hp : p ∈ U) : 
   ∃ (UX ∈ TX.opens) (UY ∈ TY.opens), p ∈ (set.prod UX UY) ∧ (set.prod UX UY) ⊆ U :=
 begin
@@ -487,7 +535,7 @@ end
 
 lemma product_of_bases_is_basis (BX : set (set X)) (BY : set (set Y)) :
   @basis X TX BX → @basis Y TY BY → 
-  @basis (X × Y) product_topology 
+  @basis (X × Y) (topology.product_topology TX TY) 
     {U : set (X × Y) | ∃ (UX ∈ BX) (UY ∈ BY), (set.prod UX UY) = U} :=
 begin
   intros hBX hBY,
@@ -516,14 +564,14 @@ begin
   ext x, simp,
 end
 
-lemma prod_fst_cts : cts product_topology TX prod.fst :=
+lemma prod_fst_cts : cts (topology.product_topology TX TY) TX prod.fst :=
 begin
   intros UX hUX x hx, use prod.fst ⁻¹' UX,
   split, exact ⟨UX, hUX, set.univ, TY.univ_open, by {ext, simp}⟩,
   tauto,
 end
 
-lemma prod_snd_cts : cts product_topology TY prod.snd :=
+lemma prod_snd_cts : cts (topology.product_topology TX TY) TY prod.snd :=
 begin
   intros UY hUY y hy, use prod.snd ⁻¹' UY,
   split, exact ⟨set.univ, TX.univ_open, UY, hUY, by {ext, simp}⟩,
@@ -531,13 +579,13 @@ begin
 end
 
 lemma cts_to_prod {Z : Type} (TZ : topology Z) (f : Z → X × Y) :
-  cts TZ product_topology f ↔
+  cts TZ (topology.product_topology TX TY) f ↔
   cts TZ TX (prod.fst ∘ f) ∧ cts TZ TY (prod.snd ∘ f) :=
 begin
   split, intro hf, split;
-  apply @cts_of_comp _ _ _ (topology.product_topology) _ _ f,
-    apply prod_fst_cts, exact hf,
-    apply prod_snd_cts, exact hf,
+  apply @cts_of_comp _ _ _ (topology.product_topology TX TY) _ _ f _ hf,
+    apply prod_fst_cts,
+    apply prod_snd_cts,
   intros hf U hU,
   rw open_if_open_around_mem, intros z hz,
   obtain ⟨W, ⟨UX, hUX, ⟨UY, hUY, hprod⟩⟩, ⟨hx1, hx2⟩⟩ := hU (f z) hz,
@@ -622,7 +670,7 @@ variables {X : Type} (TX : topology X) (A : set X)
 instance subspace_topology : topology A :=
   topology.inverse_image_topology TX (λ a, a.val)
 
-instance : has_coe (topology X) (topology A) :=
+instance topology_to_subspace_topology : has_coe (topology X) (topology A) :=
   ⟨λ TX, topology.subspace_topology TX A⟩
 
 @[simp] def to_sub : set X → set A := λ U, {x : A | x.val ∈ U}
