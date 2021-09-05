@@ -6,51 +6,101 @@ section fiber_space
 
 variables {E E' B : Type} {π : E → B} {π' : E' → B} {φ : E → E'}
 
-lemma fiber_map_subset (hφ : π' ∘ φ = π) {U : set B} {e : E} :
-  e ∈ π ⁻¹' U ↔ φ e ∈ π' ⁻¹' U := by {simp, rw [← function.comp_app π' φ, hφ]}
-
-
-lemma fiber_map_subset' (hφ : π' ∘ φ = π) {U : set B} {e : E} :
-  π e ∈ U ↔ π' (φ e) ∈ U := by rw [← function.comp_app π' φ, hφ]
-
+def res_base (hφ : π' ∘ φ = π) (U : set B) :
+  φ ⁻¹' (π' ⁻¹' U) → π' ⁻¹' U :=
+  subtype.map φ (by simp)
 
 @[simp]
-def res_subset (hφ : π' ∘ φ = π) (U : set B) :
-  π ⁻¹' U → π' ⁻¹' U :=
-  λ ⟨e, he⟩, ⟨φ e, (fiber_map_subset hφ).mp he⟩
+lemma res_base_def (hφ : π' ∘ φ = π) (U : set B)
+  (a : E) (ha : a ∈ φ ⁻¹' (π' ⁻¹' U)) :
+  res_base hφ U ⟨a, ha⟩ = ⟨φ a, ha⟩ := rfl
 
-lemma fiber_map_inj_iff_res_inj (hφ : π' ∘ φ = π) :
-  function.injective φ ↔ 
-  ∀ (U : set B), function.injective (res_subset hφ U) :=
+lemma rw_res_base (hφ : π' ∘ φ = π) (U : set B) :
+  φ ⁻¹' (π' ⁻¹' U) = π ⁻¹' U := by {rw [← hφ, ← set.preimage_comp]}
+
+lemma from_sub_res_image_of_to_sub (hφ : π' ∘ φ = π)
+  (U : set B) (V : set E):
+  from_sub _ ((res_base hφ U) '' (to_sub _ V)) =
+    (π' ⁻¹' U) ∩ (φ '' V) :=
 begin
-  split,
-    intros h U,
-    rintros ⟨e1, he1⟩ ⟨e2, he2⟩, simp, apply h,
-  intro h, specialize h set.univ,
-    rintros e1 e2 he, unfold function.injective at h, simp at h,
-    apply h, exact he,
+  ext e', simp, split,
+  rintro ⟨e'', he'', ⟨e, he⟩, he12⟩, rw he12 at *,
+  exact ⟨he'', ⟨e, he.1, he.2.2⟩⟩,
+  rintro ⟨he', e, he1, he2⟩, use e', split, exact he', use e,
+  simp [he2], exact ⟨he1, he'⟩,
 end
 
-lemma fiber_map_surj_iff_res_surj (hφ : π' ∘ φ = π) :
-  function.surjective φ ↔ 
-  ∀ (U : set B), function.surjective (res_subset hφ U) :=
+lemma from_sub_res_preimage_of_to_sub (hφ : π' ∘ φ = π)
+  (U : set B) (V : set E'):
+  from_sub _ ((res_base hφ U) ⁻¹' (to_sub _ V)) = 
+    φ ⁻¹' ((π' ⁻¹' U) ∩ V) :=
 begin
-  split,
-    rintros h U ⟨e', he'⟩,
-    obtain ⟨e, he⟩ := h e',
-    simp, exact ⟨e, by rwa [fiber_map_subset' hφ, he], he⟩,
-  intro h, specialize h set.univ,
-  unfold function.surjective at h, simp at h, apply h,
+  unfold from_sub, unfold to_sub, unfold res_base,
+  ext e, simp, split,
+  rintro ⟨x, hx⟩, rw ← hx.2.2, exact ⟨hx.1, hx.2.1⟩,
+  intro h, use e, simp, exact h,
 end
 
-lemma fiber_map_bij_iff_res_bij (hφ : π' ∘ φ = π) :
+lemma res_base_inj_of_inj (hφ : π' ∘ φ = π)
+  (hφ_inj : function.injective φ) (U : set B) : 
+  function.injective (res_base hφ U) :=
+begin
+  apply subtype.map_injective, exact hφ_inj,
+end
+
+lemma res_base_surj_of_surj (hφ : π' ∘ φ = π)
+  (hφ_surj : function.surjective φ) (U : set B) : 
+  function.surjective (res_base hφ U) :=
+begin
+  rintro ⟨x, hx⟩, obtain ⟨y, hy⟩ := hφ_surj x,
+  use y, simp, rwa hy,
+  simp, exact hy,
+end
+
+lemma res_base_bij_of_bij (hφ : π' ∘ φ = π)
+  (hφ_bij : function.bijective φ) (U : set B) : 
+  function.bijective (res_base hφ U) :=
+begin
+  split,
+    apply res_base_inj_of_inj hφ hφ_bij.1,
+    apply res_base_surj_of_surj hφ hφ_bij.2,
+end
+
+
+variables {I : Type} (U : cover I B)
+
+lemma fiber_map_inj_iff_cover_inj (hφ : π' ∘ φ = π) :
+  function.injective φ ↔
+  ∀ i, function.injective (res_base hφ (U i)) :=
+begin
+  split,
+    intros hφ_inj i, apply res_base_inj_of_inj, exact hφ_inj,
+  intros hφ_inj_cover e1 e2 he,
+  obtain ⟨i, hi⟩ := U.hx (π' (φ e1)),
+  specialize @hφ_inj_cover i ⟨e1, hi⟩ ⟨e2, by rwa he at hi⟩,
+  simp at hφ_inj_cover, exact hφ_inj_cover he,
+end
+
+lemma fiber_map_surj_iff_cover_surj (hφ : π' ∘ φ = π) :
+  function.surjective φ ↔
+  ∀ i, function.surjective (res_base hφ (U i)) :=
+begin
+  split,
+    intros hφ_surj i, apply res_base_surj_of_surj, exact hφ_surj,
+  intro hφ_surj_cover, intro e',
+  obtain ⟨i, hi⟩ := U.hx (π' e'),
+  obtain ⟨⟨a, ha⟩, ha'⟩ := hφ_surj_cover i ⟨e', hi⟩,
+  use a, simp at ha', exact ha',
+end
+
+lemma fiber_map_bij_iff_cover_bij (hφ : π' ∘ φ = π) :
   function.bijective φ ↔ 
-  ∀ (U : set B), function.bijective (res_subset hφ U) :=
+  ∀ i, function.bijective (res_base hφ (U i)) :=
 begin
   unfold function.bijective,
   rw forall_and_distrib,
-  rw ← fiber_map_inj_iff_res_inj,
-  rw ← fiber_map_surj_iff_res_surj,
+  rw ← fiber_map_inj_iff_cover_inj,
+  rw ← fiber_map_surj_iff_cover_surj,
 end
 
 section fiber_bundle
@@ -58,104 +108,108 @@ section fiber_bundle
 open topology
 
 variables [topology B] [topology E] [topology E']
+  {J : Type} (V : open_cover J B)
 
-lemma fiber_map_cts_iff_res_cts
+lemma res_base_cts_of_cts
+  (hπ_cts : cts π) (hπ'_cts : cts π') (hφ_cts : cts φ)
+  (hφ : π' ∘ φ = π)
+  (U : set B) (hU : U ∈ opens B) :
+  cts (res_base hφ U) :=
+  subtype_map_cts hφ_cts
+
+lemma fiber_map_cts_iff_cover_cts
   (hπ_cts : cts π) (hπ'_cts : cts π') (hφ : π' ∘ φ = π) :
-  topology.cts φ ↔
-  ∀ U (hU : U ∈ topology.opens B), cts (res_subset hφ U) :=
+  cts φ ↔
+  ∀ j, cts (res_base hφ (V j)) :=
 begin
   split,
-  -- mp
-  intros hφ_cts U hU V hV,
-  let V_E' := from_sub _ V,
-  have hV_E' := (from_sub_open_iff _ (hπ'_cts U hU) V).mp hV,
-  specialize hφ_cts V_E' hV_E',
-  have : res_subset hφ U ⁻¹' V = to_sub _ (φ ⁻¹' V_E'),
-    ext ⟨e, he⟩, simp,
-    have he2 := (fiber_map_subset hφ).mp he,
-    split, intro h, exact ⟨⟨φ e, he2⟩, h, rfl⟩,
-    rintro ⟨⟨e', he'⟩, he'', he'''⟩, convert he'', rw ← he''', simp,
-  rw [this, to_sub_open_iff],
-  use (φ ⁻¹' V_E'), exact ⟨hφ_cts, rfl⟩,
-  -- mpr
-  intros hφU_cts V hV,
-  specialize hφU_cts set.univ topology.univ_open (to_sub set.univ V),
-  rw to_sub_open_iff (π' ⁻¹' set.univ) (to_sub set.univ V) at hφU_cts,
-  specialize hφU_cts ⟨V, hV, rfl⟩,
-  rw from_sub_open_iff at hφU_cts,
-  suffices : from_sub (π ⁻¹' set.univ) (res_subset hφ set.univ ⁻¹' to_sub set.univ V) = φ ⁻¹' V, rwa ← this,
-  ext e, simp, exact topology.univ_open,
+    intros hφ_cts j,
+    apply res_base_cts_of_cts hπ_cts hπ'_cts hφ_cts hφ _ (V.hopen j),
+  intros hφ_cts_cover,
+  rw cts_iff_ptwise_cts, intros e W hW heW, simp,
+  obtain ⟨j, hj⟩ := V.hx (π' (φ e)),
+  use φ ⁻¹' (π' ⁻¹' (V j) ∩ W),
+  split, -- proof of openness
+    specialize hφ_cts_cover j (to_sub _ W),
+    rw to_sub_open_iff at hφ_cts_cover,
+    specialize hφ_cts_cover ⟨W, hW, rfl⟩,
+    rw from_sub_open_iff at hφ_cts_cover,
+    rwa ← from_sub_res_preimage_of_to_sub,
+    rw rw_res_base hφ, apply hπ_cts, exact V.hopen j,
+  split, simp, simp, exact ⟨hj, heW⟩,
 end
 
-lemma fiber_map_open_iff_res_open
+lemma res_base_open_map_of_open_map
+  (hπ_cts : cts π) (hπ'_cts : cts π')
+  (hφ_open : open_map φ) (hφ : π' ∘ φ = π)
+  (U : set B) (hU : U ∈ opens B) :
+  open_map (res_base hφ U) :=
+begin
+  apply subtype_map_open, exact hφ_open,
+  rw rw_res_base hφ, change (π ⁻¹' U ∈ opens E), apply hπ_cts, exact hU,
+end
+
+lemma fiber_map_open_map_iff_res_open_map
   (hπ_cts : cts π) (hπ'_cts : cts π') (hφ : π' ∘ φ = π) :
-  (∀ V ∈ topology.opens E, φ '' V ∈ topology.opens E') ↔
-  ∀ U (hU : U ∈ topology.opens B) V (hV : V ∈ topology.opens (π ⁻¹' U)),
-  ((res_subset hφ U) '' V) ∈ topology.opens (π' ⁻¹' U) :=
+  open_map φ ↔
+  ∀ j, open_map (res_base hφ (V j)) :=
 begin
   split,
-  -- mp
-  intros hφ_open U hU V hV,
-  let V_E := from_sub _ V,
-  have hV_E := (from_sub_open_iff _ (hπ_cts U hU) V).mp hV,
-  specialize hφ_open V_E hV_E,
-  have : res_subset hφ U '' V = to_sub _ (φ '' V_E),
-    ext ⟨e', he'⟩, simp,
-    split,
-    rintro ⟨e, ⟨he1, he2⟩, he3⟩, use e, split, use e, exact he1, exact ⟨he2, rfl⟩, exact he3,
-    rintro ⟨e, ⟨⟨e2, he2⟩, he2'⟩, he3⟩, rw ← he3 at he', rw ← fiber_map_subset hφ at he',
-    use e, split, use he', convert he2'.1, rw ← he2'.2, refl, exact he3,
-  rw [this, to_sub_open_iff],
-  use (φ '' V_E), exact ⟨hφ_open, rfl⟩,
-  -- mpr
-  intro hφU_open, 
-  specialize hφU_open set.univ topology.univ_open,
-  intros V hV,
-  specialize hφU_open (to_sub set.univ V),
-  rw to_sub_open_iff (π ⁻¹' set.univ) (to_sub set.univ V) at hφU_open,
-  specialize hφU_open ⟨V, hV, rfl⟩,
-  rw from_sub_open_iff at hφU_open,
-  suffices : φ '' V = from_sub (π' ⁻¹' set.univ) (res_subset hφ set.univ '' to_sub set.univ V), rwa this,
-  ext e, simp, simp, exact topology.univ_open,
+    intros hφ_open j,
+    apply res_base_open_map_of_open_map hπ_cts hπ'_cts hφ_open hφ _ (V.hopen j),
+  intros hφ_open_map W hW,
+  rw subset_open_iff_open_cover (open_pullback π' hπ'_cts V),
+  intro j, change π' ⁻¹' (V j) ∩ φ '' W ∈ opens E',
+  specialize hφ_open_map j (to_sub _ W),
+  rw to_sub_open_iff at hφ_open_map,
+  specialize hφ_open_map ⟨W, hW, rfl⟩,
+  rw from_sub_open_iff at hφ_open_map,
+  rwa ← from_sub_res_image_of_to_sub,
+  apply hπ'_cts, exact V.hopen j,
+end
+
+lemma res_base_homeo_of_homeo
+  (hπ_cts : cts π) (hπ'_cts : cts π')
+  (hφ_homeo : homeo φ) (hφ : π' ∘ φ = π)
+  (U : set B) (hU : U ∈ opens B) :
+  homeo (res_base hφ U) :=
+begin
+  rw homeo_iff at *,
+  split,
+    exact res_base_cts_of_cts hπ_cts hπ'_cts hφ_homeo.1 hφ U hU,
+  split,
+    exact res_base_bij_of_bij hφ hφ_homeo.2.1 U,
+    exact res_base_open_map_of_open_map hπ_cts hπ'_cts hφ_homeo.2.2 hφ U hU,
 end
 
 lemma fiber_map_homeo_iff_res_homeo
   (hπ_cts : cts π) (hπ'_cts : cts π') (hφ : π' ∘ φ = π) :
   homeo φ ↔
-  ∀ U (hU : U ∈ topology.opens B), homeo (res_subset hφ U) :=
+  ∀ j, homeo (res_base hφ (V j)) :=
 begin
-  rw homeo_iff, conv in (homeo _) {rw homeo_iff},
-  split, intros h U hU,
-  exact ⟨(fiber_map_cts_iff_res_cts hπ_cts hπ'_cts hφ).mp h.1 U hU,
-         (fiber_map_bij_iff_res_bij hφ).mp h.2.1 U,
-         (fiber_map_open_iff_res_open hπ_cts hπ'_cts hφ).mp h.2.2 U hU⟩,
-  intro h, rw [ball_and_distrib, ball_and_distrib] at h,
-  obtain ⟨h1, h2, h3⟩ := h,
-  rw ← fiber_map_cts_iff_res_cts hπ_cts hπ'_cts hφ at h1,
-  specialize h2 set.univ topology.univ_open,
-  rw ← fiber_map_open_iff_res_open hπ_cts hπ'_cts hφ at h3,
-  split, exact h1,
-  split, {unfold function.bijective at *,
-          unfold function.injective at *,
-          unfold function.surjective at *, simp at h2, exact h2},
-  exact h3,
+  split, intros hφ_homeo j,
+    exact res_base_homeo_of_homeo hπ_cts hπ'_cts hφ_homeo hφ (V j) (V.hopen j),
+  intro hφ_homeo,
+  rw [homeo_iff,
+      fiber_map_cts_iff_cover_cts V hπ_cts hπ'_cts hφ,
+      fiber_map_bij_iff_cover_bij V.to_cover hφ,
+      fiber_map_open_map_iff_res_open_map V hπ_cts hπ'_cts hφ,
+      ← forall_and_distrib, ← forall_and_distrib],
+  intro j, specialize hφ_homeo j, rwa homeo_iff at hφ_homeo,
 end
 
-
-structure fiber_space (B : Type) :=
-  (E : Type)
-  (π : E → B)
-infix `∈` := λ e (X : fiber_space), e ∈ X.E
-
-structure fiber_map {B : Type} (X X' : fiber_space B) :=
-  (φ : X.E → X'.E)
-  (hφ_proj : X'.π ∘ φ = X.π)
-
-instance fiber_map_to_fun {B : Type} {X X' : fiber_space B} :
-  has_coe_to_fun (fiber_map X X') :=
-  { F   := λ _, X.E → X'.E,
-    coe := λ m, m.φ}
-
 end fiber_bundle
-
 end fiber_space
+
+section trivial_bundle
+
+variables {E B fiber : Type}
+  (π' : E → B)
+  (U U' : set B)
+
+structure trivializing_subset {E B : Type} 
+  (π' : E → B) (U : set B) (fiber : Type) :=
+  (φ : U × fiber → π' ⁻¹' U)
+  (hφ : (restrict_target π' U) ∘ φ = prod.fst)
+
+end trivial_bundle

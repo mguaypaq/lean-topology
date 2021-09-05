@@ -2,7 +2,7 @@ import tactic
 import .topology
 noncomputable theory
 
-section covers
+section cover
 
 -- cover of a set
 structure cover (I X : Type) :=
@@ -13,6 +13,31 @@ structure cover (I X : Type) :=
 instance cover_to_parts (I X : Type) : has_coe_to_fun (cover I X) :=
   {F   := λ _, I → set X,
    coe := λ U, U.part}
+
+@[reducible]
+def pullback {I X Y : Type} (f : X → Y) (U : cover I Y) : cover I X :=
+  ⟨ λ i, f ⁻¹' (U i),
+    λ x, U.hx (f x)⟩
+infix `⁻¹c`:110 := pullback
+
+lemma pullback_comp {I X Y Z : Type} (f : X → Y) (g : Y → Z)
+  (U : cover I Z) : (g ∘ f) ⁻¹c U = f ⁻¹c (g ⁻¹c U) := by split
+
+lemma cover_set_eq {I X : Type} (U : cover I X) (A : set X) :
+  A = ⋃₀ {A' | ∃ j, A' = (U j) ∩ A} :=
+begin
+  ext a, split; intro ha,
+  obtain ⟨i, hi⟩ := U.hx a,
+  use (U i) ∩ A, exact ⟨⟨i, rfl⟩, hi, ha⟩,
+  obtain ⟨A', ⟨j, hj⟩, hA''⟩ := ha, rw hj at hA'', exact hA''.2,
+end
+
+example {X Y : Type} (f : X → Y) (U : set Y) : set.preimage f U → U :=
+  λ x, ⟨f x.val, x.prop⟩
+
+example {X Y : Type} (f : X → Y) : X → f '' set.univ :=
+  λ x, ⟨f x, ⟨x, trivial, rfl⟩⟩
+
 
 -- consistent functions on each part of the cover
 structure gluing_data (I X Y : Type) :=
@@ -95,34 +120,51 @@ end
 
 end refine
 
-end covers
+end cover
 
 section open_cover
 open topology
+--(@pullback J E' B π' V)
 
-variables (I X Y : Type) [topology X] [topology Y]
+structure open_cover (I X : Type) [topology X] extends (cover I X) :=
+  (hopen : ∀ (i : I), part i ∈ opens X)
 
-structure open_cover extends (cover I X) :=
-  (hopen : ∀ (i : I), part i ∈ topology.opens X)
+instance (I X : Type) [topology X] :
+  has_coe (open_cover I X) (cover I X) := ⟨λ U, ⟨U.part, U.hx⟩⟩
 
-instance : has_coe (open_cover I X) (cover I X) := ⟨λ U, ⟨U.part, U.hx⟩⟩
-
-structure cts_gluing_data :=
+structure cts_gluing_data (I X Y : Type) [topology X] [topology Y] :=
   (U : open_cover I X)
   (f : Π (i : I), (U i) → Y)
   (hglue : ∀ (i j : I) (x : X) (hxi : x ∈ U i) (hxj : x ∈ U j),
     (f i) ⟨x, hxi⟩ = (f j) ⟨x, hxj⟩)
   (hf : Π (i : I), cts (f i))
 
-instance : has_coe (cts_gluing_data I X Y) (gluing_data I X Y) :=
+instance (I X Y : Type) [topology X] [topology Y] :
+  has_coe (cts_gluing_data I X Y) (gluing_data I X Y) :=
   ⟨λ gl, ⟨gl.U, gl.f, gl.hglue⟩⟩
 
-variables
+variables {I X : Type} [topology X]
+
+lemma subset_open_iff_open_cover (U : open_cover I X) (A : set X) :
+  A ∈ opens X ↔ ∀ (i : I), (U i) ∩ A ∈ opens X :=
+begin
+  split, intros hA i, apply inter₂ _ _ (U.hopen i) hA,
+  intro hA,
+  rw cover_set_eq U.to_cover A,
+  apply union, rintros A' ⟨i, hi⟩, rw hi, exact hA i,
+end
+
+variables {Y : Type} [topology Y]
   (U : open_cover I X) (gl : cts_gluing_data I X Y)
   (f g : X → Y)
 
+@[reducible]
+def open_pullback (hf : cts f) (U : open_cover I Y) : open_cover I X :=
+  ⟨ pullback f ↑U,
+    λ i, hf _ (U.hopen i)⟩
+
 lemma cts_iff_cts_on_cover (f : X → Y) : cts f ↔ 
-  Π (i : I), @cts _ _ (topology.subspace_topology (U i)) _
+  Π (i : I), @cts _ _ (subspace_topology (U i)) _
                       (subtype.restrict f (U i)) :=
 begin
   split,
@@ -141,14 +183,14 @@ lemma cts_of_cts_compat :
   compatible (gl : gluing_data I X Y) f → cts f :=
 begin
   intro hf,
-  rw cts_iff_cts_on_cover I X Y gl.U,
+  rw cts_iff_cts_on_cover gl.U,
   rw compatible_iff_restrict_eq at hf,
   intro i, specialize hf i, convert gl.hf i,
 end
 
 -- the glued function is continuous! 🎉
 lemma mk_function_cts : cts (mk_function (gl : gluing_data I X Y)) :=
-  cts_of_cts_compat I X Y gl
+  cts_of_cts_compat gl
   (mk_function (gl : gluing_data I X Y))
   (mk_compatible ↑gl)
 
