@@ -108,9 +108,7 @@ variables [topology B] [topology E] [topology E']
   {J : Type} (V : open_cover J B)
 
 lemma res_base_cts_of_cts
-  (hπ_cts : cts (π' ∘ φ)) (hπ'_cts : cts π') (hφ_cts : cts φ)
- 
-  (U : set B) (hU : U ∈ opens B) :
+  (hπ'_cts : cts π') (hφ_cts : cts φ) (U ∈ opens B) :
   cts (res_base π' φ U) :=
   subtype_map_cts hφ_cts
 
@@ -121,7 +119,7 @@ lemma fiber_map_cts_iff_cover_cts
 begin
   split,
     intros hφ_cts j,
-    apply res_base_cts_of_cts _ _ hπ_cts hπ'_cts hφ_cts _ (V.hopen j),
+    apply res_base_cts_of_cts _ _ hπ'_cts hφ_cts _ (V.hopen j),
   intros hφ_cts_cover,
   rw cts_iff_ptwise_cts, intros e W hW heW, simp,
   obtain ⟨j, hj⟩ := V.hx (π' (φ e)),
@@ -140,11 +138,11 @@ end
 lemma res_base_open_map_of_open_map
   (hπ_cts : cts (π' ∘ φ)) (hπ'_cts : cts π')
   (hφ_open : open_map φ)
-  (U : set B) (hU : U ∈ opens B) :
+  (U ∈ opens B) :
   open_map (res_base π' φ U) :=
 begin
   apply subtype_map_open, exact hφ_open,
-  change ((π' ∘ φ) ⁻¹' U ∈ opens E), apply hπ_cts, exact hU,
+  change ((π' ∘ φ) ⁻¹' U ∈ opens E), apply hπ_cts, exact ‹U ∈ opens B›,
 end
 
 lemma fiber_map_open_map_iff_res_open_map
@@ -169,15 +167,15 @@ end
 lemma res_base_homeo_of_homeo
   (hπ_cts : cts (π' ∘ φ)) (hπ'_cts : cts π')
   (hφ_homeo : homeo φ)
-  (U : set B) (hU : U ∈ opens B) :
+  (U ∈ opens B) :
   homeo (res_base π' φ U) :=
 begin
   rw homeo_iff at *,
   split,
-    exact res_base_cts_of_cts _ _ hπ_cts hπ'_cts hφ_homeo.1 U hU,
+    exact res_base_cts_of_cts _ _ hπ'_cts hφ_homeo.1 U ‹U ∈ opens B›,
   split,
     exact res_base_bij_of_bij _ _ hφ_homeo.2.1 U,
-    exact res_base_open_map_of_open_map _ _ hπ_cts hπ'_cts hφ_homeo.2.2 U hU,
+    exact res_base_open_map_of_open_map _ _ hπ_cts hπ'_cts hφ_homeo.2.2 U ‹U ∈ opens B›,
 end
 
 lemma fiber_map_homeo_iff_res_homeo
