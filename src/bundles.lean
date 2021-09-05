@@ -197,15 +197,36 @@ end
 end fiber_bundle
 end fiber_space
 
-section trivial_bundle
+section pullback
 
-variables {E B fiber : Type}
-  (π' : E → B)
-  (U U' : set B)
+variables {E B B' : Type} (π : E → B) (f : B' → B)
 
-structure trivializing_subset {E B : Type} 
-  (π' : E → B) (U : set B) (fiber : Type) :=
-  (φ : U × fiber → π' ⁻¹' U)
-  (hφ : (restrict_target π' U) ∘ φ = prod.fst)
+def pullback_bundle : Type := {pair : B' × E // f pair.fst = π pair.snd}
+def pullback_bundle.fst : pullback_bundle π f → B' := λ x, x.val.fst
+def pullback_bundle.snd : pullback_bundle π f → E := λ x, x.val.snd
 
-end trivial_bundle
+lemma pullback_bundle.sound :
+  f ∘ pullback_bundle.fst π f = π ∘ pullback_bundle.snd π f :=
+begin
+  ext ⟨_, h⟩, exact h,
+end
+
+lemma pullback_bundle.universal (Z : Type) (πZ : Z → B') (fZ : Z → E)
+  (h : f ∘ πZ = π ∘ fZ) :
+  ∃! g : Z → pullback_bundle π f,
+  pullback_bundle.fst π f ∘ g = πZ ∧ pullback_bundle.snd π f ∘ g = fZ :=
+begin
+  use λ z, ⟨⟨πZ z, fZ z⟩, congr_fun h z⟩,
+  split,
+  split; ext; refl,
+  rintros g' ⟨hl, hr⟩, ext,
+    change (g' x).val.fst = πZ x, rw ← hl, refl,
+    change (g' x).val.snd = fZ x, rw ← hr, refl,
+end
+
+structure trivializing_pullback {E B B' : Type} (π : E → B) (f : B' → B) (fiber : Type) :=
+  (φ : B' × fiber → pullback_bundle π f)
+  (hφ : (pullback_bundle.fst π f) ∘ φ = prod.fst)
+  (hφ_bij : function.bijective φ)
+
+end pullback
