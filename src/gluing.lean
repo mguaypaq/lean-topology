@@ -15,12 +15,12 @@ instance cover_to_parts (I X : Type) : has_coe_to_fun (cover I X) :=
    coe := λ U, U.part}
 
 @[reducible]
-def pullback {I X Y : Type} (f : X → Y) (U : cover I Y) : cover I X :=
+def pullback_cover {I X Y : Type} (f : X → Y) (U : cover I Y) : cover I X :=
   ⟨ λ i, f ⁻¹' (U i),
     λ x, U.hx (f x)⟩
-infix `⁻¹c`:110 := pullback
+infix `⁻¹c`:110 := pullback_cover
 
-lemma pullback_comp {I X Y Z : Type} (f : X → Y) (g : Y → Z)
+lemma pullback_cover.comp {I X Y Z : Type} (f : X → Y) (g : Y → Z)
   (U : cover I Z) : (g ∘ f) ⁻¹c U = f ⁻¹c (g ⁻¹c U) := by split
 
 lemma cover_set_eq {I X : Type} (U : cover I X) (A : set X) :
@@ -159,8 +159,8 @@ variables {Y : Type} [topology Y]
   (f g : X → Y)
 
 @[reducible]
-def open_pullback (hf : cts f) (U : open_cover I Y) : open_cover I X :=
-  ⟨ pullback f ↑U,
+def pullback_open_cover (hf : cts f) (U : open_cover I Y) : open_cover I X :=
+  ⟨ pullback_cover f ↑U,
     λ i, hf _ (U.hopen i)⟩
 
 lemma cts_iff_cts_on_cover (f : X → Y) : cts f ↔ 

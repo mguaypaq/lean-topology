@@ -154,7 +154,7 @@ begin
     intros hφ_open j,
     apply res_base_open_map_of_open_map _ _ hπ_cts hπ'_cts hφ_open _ (V.hopen j),
   intros hφ_open_map W hW,
-  rw subset_open_iff_open_cover (open_pullback π' hπ'_cts V),
+  rw subset_open_iff_open_cover (pullback_open_cover π' hπ'_cts V),
   intro j, change π' ⁻¹' (V j) ∩ φ '' W ∈ opens E',
   specialize hφ_open_map j (to_sub _ W),
   rw to_sub_open_iff at hφ_open_map,
@@ -197,36 +197,440 @@ end
 end fiber_bundle
 end fiber_space
 
-section pullback
+section fiber_product
 
 variables {E B B' : Type} (π : E → B) (f : B' → B)
 
-def pullback_bundle : Type := {pair : B' × E // f pair.fst = π pair.snd}
-def pullback_bundle.fst : pullback_bundle π f → B' := λ x, x.val.fst
-def pullback_bundle.snd : pullback_bundle π f → E := λ x, x.val.snd
+def fiber_product : Type := {pair : B' × E // f pair.fst = π pair.snd}
+@[simp] def fiber_product.fst : fiber_product π f → B' := λ x, x.val.fst
+@[simp] def fiber_product.snd : fiber_product π f → E := λ x, x.val.snd
+infix `×f`:110 := fiber_product
 
-lemma pullback_bundle.sound :
-  f ∘ pullback_bundle.fst π f = π ∘ pullback_bundle.snd π f :=
+lemma fiber_product.sound :
+  f ∘ fiber_product.fst π f = π ∘ fiber_product.snd π f :=
 begin
   ext ⟨_, h⟩, exact h,
 end
 
-lemma pullback_bundle.universal (Z : Type) (πZ : Z → B') (fZ : Z → E)
+@[simp]
+def fiber_product.exact.map {Z : Type} (πZ : Z → B') (fZ : Z → E)
+  (h : f ∘ πZ = π ∘ fZ) : Z → π ×f f :=
+λ z, ⟨⟨πZ z, fZ z⟩, congr_fun h z⟩
+
+lemma fiber_product.exact.prop (Z : Type) (πZ : Z → B') (fZ : Z → E)
   (h : f ∘ πZ = π ∘ fZ) :
-  ∃! g : Z → pullback_bundle π f,
-  pullback_bundle.fst π f ∘ g = πZ ∧ pullback_bundle.snd π f ∘ g = fZ :=
+  fiber_product.fst _ _ ∘ fiber_product.exact.map _ _ _ _ h = πZ ∧
+  fiber_product.snd _ _ ∘ fiber_product.exact.map _ _ _ _ h = fZ :=
 begin
-  use λ z, ⟨⟨πZ z, fZ z⟩, congr_fun h z⟩,
-  split,
   split; ext; refl,
-  rintros g' ⟨hl, hr⟩, ext,
-    change (g' x).val.fst = πZ x, rw ← hl, refl,
-    change (g' x).val.snd = fZ x, rw ← hr, refl,
 end
 
-structure trivializing_pullback {E B B' : Type} (π : E → B) (f : B' → B) (fiber : Type) :=
-  (φ : B' × fiber → pullback_bundle π f)
-  (hφ : (pullback_bundle.fst π f) ∘ φ = prod.fst)
-  (hφ_bij : function.bijective φ)
+lemma fiber_product.universal (Z : Type) (πZ : Z → B') (fZ : Z → E)
+  (h : f ∘ πZ = π ∘ fZ) (g : Z → π ×f f)
+  (hg : fiber_product.fst π f ∘ g = πZ ∧ fiber_product.snd π f ∘ g = fZ) :
+  g = fiber_product.exact.map _ _ _ _ h :=
+begin
+  ext,
+    change (g x).val.fst = πZ x, rw ← hg.1, refl,
+    change (g x).val.snd = fZ x, rw ← hg.2, refl,
+end
+
+/-
+Annoying technical thing:
+
+If π = ρ and f = g, then the types `fiber_product π f` and
+`fiber_product ρ g` are obviously not equal. I don't even know if they
+are defeq. So, I wrote the lemma `fiber_product.ext` below which maps between
+fiber products of equal functions.
+
+This is useful for when we have `h : π ∘ φ = π'` and so on.
+-/
+
+
+def fiber_product.ext
+  (pi : E → B) (eff : B' → B) (pi_eq : pi = π) (eff_eq : eff = f) :
+  π ×f f → pi ×f eff :=
+  subtype.map id begin intros a h, rwa [pi_eq, eff_eq] end
+
+lemma fiber_product.ext_app
+  (pi : E → B) (eff : B' → B) (pi_eq : pi = π) (eff_eq : eff = f)
+  (x : π ×f f) :
+    fiber_product.ext π f pi eff pi_eq eff_eq x =
+    ⟨x.val, begin rw [pi_eq, eff_eq], exact x.prop, end⟩ := rfl
+
+-- "Composition of pullbacks along the base":
+-- The following are canonically isomorphic:
+--   1. the pullback of π along (f ∘ f')
+--   2. the pullback of (the pullback of π along f) along f'
+-- but they are not *equal* :
+--    #1 is a subtype of B'' × F, whereas
+--    #2 is a subtype of B'' × (fiber_product π f).
+-- Definitionally these are:
+--   1. {pair : B'' × F // (f ∘ f') pair.fst = π pair.snd}
+--   2. {pair : B'' × α // f' pair.fst = pullback.fst π f pair.snd}
+--      where α is 
+--      fiber_product π f := {pair' : B' × F // f pair'.fst = π pair'.snd }.
+
+variables {B'' : Type} (f' : B'' → B')
+
+def fiber_product.comp_base :
+  (fiber_product.fst π f) ×f f' ≃ π ×f (f ∘ f') :=
+{
+  to_fun := fiber_product.exact.map π (f ∘ f')
+    (fiber_product.fst _ f')
+    (fiber_product.snd π f ∘ fiber_product.snd _ f')
+    (by rw [function.comp.assoc, ←function.comp.assoc π,
+            fiber_product.sound, ←fiber_product.sound π]),
+  inv_fun :=
+    let π'' := fiber_product.exact.map π f _
+                                           (fiber_product.snd π (f ∘ f'))
+                                           (by rw ← fiber_product.sound π)
+    in fiber_product.exact.map _ f' _ π''
+                                    (by rw (fiber_product.exact.prop _ _ _ _ _ _).1),
+  left_inv := begin rintro ⟨⟨b'', ⟨⟨b', v⟩, h1⟩⟩, h2⟩,
+                    simp, exact h2, end,
+  right_inv := begin rintro ⟨⟨b'', e⟩, h⟩, simp, end }
+
+section cts_fiber_product
+variables [topology E] [topology B] [topology B'] [topology B'']
+
+-- The topology on a fiber product is the subspace topology from E × B.
+instance fiber_product_topology :
+  topology (π ×f f) := subtype_topology _
+
+/-
+Let's prove that all the maps in fiber product diagrams are continuous:
+  -- the two projections,
+  -- the map from the universal property.
+
+Note: (fiber_product.fst π f) is cts even if π and/or f are not!
+This is because it is the restriction of B' × E → B'.
+
+It's convenient to also prove continuity of the composite map
+  --  fiber_product π f → B
+We give two different proofs (fiber_product.sound.cts and .cts') by going
+around the square the two ways. These require either (cts π) or (cts f).
+-/
+
+lemma fiber_product.fst.cts : cts (fiber_product.fst π f) :=
+  cts_of_comp _ _ coe_cts prod_fst_cts
+
+lemma fiber_product.snd.cts : cts (fiber_product.snd π f) :=
+  cts_of_comp _ _ coe_cts prod_snd_cts
+
+lemma fiber_product.sound.cts
+  (hf : cts f) : cts (f ∘ fiber_product.fst π f) :=
+  cts_of_comp _ _ (fiber_product.fst.cts π f) hf
+  
+lemma fiber_product.sound.cts'
+  (hπ : cts π) : cts (π ∘ fiber_product.snd π f) :=
+  cts_of_comp _ _ (fiber_product.snd.cts π f) hπ
+
+lemma fiber_product.exact.map.cts {Z : Type} [topology Z] 
+  (πZ : Z → B') (fZ : Z → E) (πZ_cts : cts πZ) (fZ_cts : cts fZ)
+  (h : f ∘ πZ = π ∘ fZ) :
+  cts (fiber_product.exact.map π f πZ fZ h) :=
+begin
+  apply restrict_cod_cts,
+  exact (cts_map_to_prod _).mpr ⟨πZ_cts, fZ_cts⟩,
+end
+
+lemma fiber_product.comp_base.cts
+  (hπ : cts π) (hf : cts f) (hf' : cts f') :
+  cts (fiber_product.comp_base π f f').to_fun :=
+begin
+  apply fiber_product.exact.map.cts,
+  apply fiber_product.fst.cts,
+  simp,
+  apply cts_of_comp, apply cts_of_comp, apply cts_of_comp,
+  exact coe_cts, exact prod_snd_cts, exact coe_cts, exact prod_snd_cts,
+end
+
+end cts_fiber_product
+
+end fiber_product
+
+section fiber_bundle
+
+/-
+
+Bundles.
+
+Goal: Show that trivializations pull back.
+
+We distinguish between:
+  1. *trivial bundles* : these are bundles of the form
+      prod.fst : B × fiber → B
+  2. *trivializations of bundles* : given π : E → B, this is the data of
+      φ  : equiv (B × fiber) E,
+      hφ : π ∘ φ = prod.fst
+
+These aren't the same thing. (In real life, this occurs when a bundle can
+be trivialized in many ways. Think of picking a basis of a vector space.
+For trivial bundles (1), the choice is already made. Otherwise it's data.)
+
+Warning: The pullback of a trivial bundle along f : B' → B is trivial, in
+fact *canonically* trivial (we will write down a natural trivialization).
+But it is not *definitionally* trivial. This is because it has the form
+
+      {(b, f b, v)} ⊆ B' × B × fiber
+
+rather than being B' × fiber. Notice that this is (almost) defeq to (graph of f) × fiber.
+
+Our approach:
+
+a) Define trivial bundle
+b) Define trivialization of bundle (:= equivalence of the bundle with a trivial bundle)
+c) Construct a *canonical* trivialization of the pullback of a trivial bundle.
+   (This uses the notion of graph of a function.)
+d) Construct functorial pullbacks of bundle maps (in particular of equivalences (b)).
+e) Combine (c) and (d) to "pull back trivializations". 🎉
+-/
+
+-- Bundles and bundle maps.
+
+structure bundle (B : Type) := 
+  (space : Type)
+  (π : space → B)
+
+instance bundle_to_proj (B : Type) : has_coe_to_fun (bundle B) :=
+{ F   := λ E, E.space → B, 
+  coe := λ E, E.π }
+
+@[ext]
+structure bundle_map {B : Type} (E F : bundle B) :=
+  (map : E.space → F.space)
+  (h : F.π ∘ map = E.π)
+infix `→→`:110 := bundle_map
+
+instance bundle_map_to_fn {B : Type} (E F : bundle B) : has_coe_to_fun (E →→ F) :=
+{ F   := λ φ, E.space → F.space, 
+  coe := λ φ, φ.map }
+
+def bundle_map.id {B : Type} (E : bundle B) : E →→ E :=
+{ map := id,
+  h   := function.comp.right_id E.π, }
+
+def bundle_map.comp {B : Type} {E F G : bundle B}
+  (φ' : F →→ G) (φ : E →→ F) : E →→ G :=
+{ map := φ'.map ∘ φ.map,
+  h   := by rw [← function.comp.assoc, φ'.h, φ.h], }
+infix `∘∘`:110 := bundle_map.comp
+
+@[simp]
+lemma bundle_map.comp.assoc {B : Type} {E F G H : bundle B}
+  (φ'' : G →→ H) (φ' : F →→ G) (φ : E →→ F) :
+  (φ'' ∘∘ φ') ∘∘ φ = φ'' ∘∘ (φ' ∘∘ φ) := rfl
+
+@[simp]
+lemma bundle_map.left_id {B : Type} {E F : bundle B} (φ : bundle_map E F) :
+  (bundle_map.id F) ∘∘ φ = φ :=
+begin
+  ext x, refl,
+end
+
+@[simp]
+lemma bundle_map.right_id {B : Type} {E F : bundle B} (φ : bundle_map E F) :
+  φ ∘∘ (bundle_map.id E) = φ :=
+begin
+  ext x, refl,
+end
+
+structure bundle_equiv {B : Type} (E F : bundle B) :=
+  (to_bundle_map  : E →→ F)
+  (inv_bundle_map : F →→ E)
+  (left_inv       : inv_bundle_map ∘∘ to_bundle_map = bundle_map.id E)
+  (right_inv      : to_bundle_map ∘∘ inv_bundle_map = bundle_map.id F)
+infix `≃≃`:100 := bundle_equiv
+
+def bundle_equiv.mk' {B : Type} {E F : bundle B}
+  (φ : equiv E.space F.space)
+  (hφ : F.π ∘ φ.to_fun = E.π)
+  (hφ_inv : E.π ∘ φ.inv_fun = F.π) : E ≃≃ F :=
+  { to_bundle_map  := ⟨φ.to_fun, hφ⟩,
+    inv_bundle_map := ⟨φ.inv_fun, hφ_inv⟩,
+    left_inv       := begin ext e, exact φ.left_inv e, end,
+    right_inv      := begin ext e, exact φ.right_inv e, end }
+
+def bundle_equiv.trans {B : Type} {E F G : bundle B}
+  (φ : E ≃≃ F) (φ' : F ≃≃ G) : E ≃≃ G :=
+  { to_bundle_map  := φ'.to_bundle_map ∘∘ φ.to_bundle_map,
+    inv_bundle_map := φ.inv_bundle_map ∘∘ φ'.inv_bundle_map,
+    left_inv       := by rw [bundle_map.comp.assoc,
+                             ← bundle_map.comp.assoc φ'.inv_bundle_map,
+                             φ'.left_inv,
+                             bundle_map.left_id,
+                             φ.left_inv],
+    right_inv      := by rw [bundle_map.comp.assoc,
+                             ← bundle_map.comp.assoc φ.to_bundle_map,
+                             φ.right_inv,
+                             bundle_map.left_id,
+                             φ'.right_inv], }
+
+section pullback
+-- Pullbacks. Closely related to fiber products.
+
+@[reducible]
+def pullback_bundle {B' B : Type} (f : B' → B) (E : bundle B) : bundle B' :=
+{ space := fiber_product E.π f,
+  π := fiber_product.fst E.π f }
+infix `**`:110 := pullback_bundle
+
+def pullback_map {B' B : Type} (f : B' → B) {E F : bundle B} (φ : E →→ F) :
+  (f ** E) →→ (f ** F) :=
+{ map := fiber_product.exact.map F.π f (f ** E).π (φ.map ∘ (fiber_product.snd E.π f))
+         begin rw [← function.comp.assoc F.π, φ.h, ← fiber_product.sound], end,
+  h := begin ext ⟨⟨e', b'⟩, h⟩, refl, end,
+}
+infix `↖*`:110 := pullback_map
+
+--variables {B' B : Type} (f : B' → B) {E F G : bundle B} (φ' : F →→ G) (φ : E →→ F)
+
+@[simp]
+lemma pullback_map.def {B' B : Type} (f : B' → B) {E F G : bundle B}
+  (φ' : F →→ G) (φ : E →→ F) {b' : B'} {e : E.space} {h : f b' = E.π e} :
+  (f ↖* φ) ⟨(b', e), h⟩ =
+    ⟨(b', φ e), begin change f b' = (F.π ∘ φ.map) e, rw φ.h, exact h, end⟩ := rfl
+
+lemma pullback_map.comp {B' B : Type} (f : B' → B) {E F G : bundle B}
+  (φ' : F →→ G) (φ : E →→ F) :
+  (f ↖* φ') ∘∘ (f ↖* φ) = f ↖* (φ' ∘∘ φ) := rfl
+
+lemma pullback_map.of_id {B' B : Type} (f : B' → B) (E : bundle B) :
+  (f ↖* (bundle_map.id E)) = (bundle_map.id (f ** E)) :=
+begin
+  ext ⟨⟨e, b'⟩, h⟩, refl, refl,
+end
+
+def pullback_bundle_equiv {B' B : Type} (f : B' → B) {E F : bundle B}
+  (φ : E ≃≃ F) : (f ** E) ≃≃ (f ** F) :=
+{ to_bundle_map  := f ↖* φ.to_bundle_map,
+  inv_bundle_map := f ↖* φ.inv_bundle_map,
+  left_inv       := by rw [pullback_map.comp,
+                           φ.left_inv,
+                           pullback_map.of_id],
+  right_inv      := by rw [pullback_map.comp,
+                           φ.right_inv,
+                           pullback_map.of_id], }
+infix `↖≃`:110 := pullback_bundle_equiv
+
+def pullback_comp {B'' B' B : Type} (g : B'' → B') (f : B' → B) (E : bundle B) :
+  g ** (f ** E) ≃≃ (f ∘ g) ** E :=
+  @bundle_equiv.mk' B'' (g ** (f ** E)) ((f ∘ g) ** E)
+  (fiber_product.comp_base E.π f g)
+  rfl rfl
 
 end pullback
+
+section trivial_bundle
+-- Trivial bundles
+
+@[reducible] def trivial_bundle (B fiber : Type) : bundle B := 
+  { space := B × fiber, 
+    π     := prod.fst }
+infix `××`:110 := trivial_bundle
+
+@[reducible]
+def fn_graph {X Y : Type} (f : X → Y) := {pair : X × Y // f pair.fst = pair.snd}
+
+def domain_equiv_graph {X Y : Type} (f : X → Y) :
+  equiv X (fn_graph f) :=
+  { to_fun := (λ x, ⟨⟨x, f x⟩, rfl⟩),
+    inv_fun := (λ ⟨⟨x, y⟩, h⟩, x),
+    left_inv := λ x, rfl,
+    right_inv := λ ⟨⟨x, y⟩, h⟩, begin simp, exact ⟨rfl, h⟩, end,}
+
+def prod_equiv_right {X X' : Type} (φ : equiv X X') (Y : Type) : equiv (X × Y) (X' × Y) :=
+  { to_fun := prod.map φ id,
+    inv_fun := prod.map φ.inv_fun id,
+    left_inv := λ _, by simp,
+    right_inv := λ _, by simp, }
+
+def graph_equiv_pullback_of_trivial {B B' : Type} (fiber : Type) (f : B' → B) :
+  equiv ((fn_graph f) ×× fiber).space (f ** (B ×× fiber)).space :=
+  { to_fun := λ ⟨⟨⟨x, y⟩, h⟩, v⟩, ⟨⟨x, y, v⟩, h⟩,
+    inv_fun := λ ⟨⟨x, y, v⟩, h⟩, ⟨⟨⟨x, y⟩, h⟩, v⟩,
+    left_inv := λ ⟨⟨⟨x, y⟩, h⟩, v⟩, rfl,
+    right_inv := λ ⟨⟨x, y, v⟩, h⟩, rfl }
+
+end trivial_bundle
+
+section cts_bundle
+
+lemma domain_equiv_graph.cts {X Y : Type} [topology X] [topology Y]
+  {f : X → Y} (hf : cts f) : cts (domain_equiv_graph f).to_fun :=
+begin
+  apply restrict_cod_cts,
+  rw cts_map_to_prod,
+  exact ⟨cts.id, hf⟩,
+end
+
+lemma domain_equiv_graph.inv_cts {X Y : Type} [topology X] [topology Y]
+  {f : X → Y} (hf : cts f) : cts (domain_equiv_graph f).inv_fun :=
+begin
+  have : (domain_equiv_graph f).inv_fun = (prod.fst ∘ (coe : fn_graph f → X × Y)),
+    ext ⟨⟨x, y⟩, h⟩, refl,
+  rw this,
+  apply cts_of_comp _ _ coe_cts prod_fst_cts,
+end
+
+-- This seems annoying.
+lemma graph_equiv_pullback_of_trivial.cts
+  {B B' : Type} [topology B] [topology B']
+  {fiber : Type} [topology fiber] {f : B' → B} (hf : cts f) :
+  cts (graph_equiv_pullback_of_trivial fiber f).to_fun :=
+begin
+  sorry,
+end
+
+-- This too.
+lemma graph_equiv_pullback_of_trivial.inv_cts
+  {B B' : Type} [topology B] [topology B']
+  {fiber : Type} [topology fiber] {f : B' → B} (hf : cts f) :
+  cts (graph_equiv_pullback_of_trivial fiber f).inv_fun :=
+begin
+  sorry,
+end
+
+end cts_bundle
+
+
+section trivialization
+-- Trivializations.
+
+def trivialization {B : Type} (E : bundle B) (fiber : Type) := (B ×× fiber) ≃≃ E
+
+-- Trivializing the pullback of a trivial bundle along any map.
+-- This has to be done "by hand".
+def trivialization_of_pullback_of_trivial {B B' : Type} (fiber : Type) (f : B' → B) :
+  trivialization (f ** (B ×× fiber)) fiber :=
+  bundle_equiv.mk'
+    (equiv.trans (prod_equiv_right (domain_equiv_graph f) fiber)
+                 (graph_equiv_pullback_of_trivial fiber f))
+    rfl
+    begin ext ⟨⟨b', b, v⟩, h⟩, refl, end
+
+-- Pullback of a *trivialization* along any map.
+def trivialization.pullback {B B' : Type} (E : bundle B) (fiber : Type)
+  (f : B' → B) (triv : trivialization E fiber) :
+  trivialization (f ** E) fiber :=
+  bundle_equiv.trans
+    (trivialization_of_pullback_of_trivial fiber f) (f ↖≃ triv)
+
+end trivialization
+
+section locally_trivial_fiber_bundle
+
+variables {B : Type} (E : bundle B) (fiber : Type)
+  [topology B] [topology E.space] [topology fiber]
+  {I : Type} (U : open_cover I B)
+
+-- 🎉 🎉 🎉 --
+structure local_trivialization (h : cts E.π) :=
+  (triv      : ∀ i, trivialization ((coe : U i → B) ** E) fiber)
+  (htriv     : ∀ i, cts (triv i).to_bundle_map)
+  (htriv_inv : ∀ i, cts (triv i).inv_bundle_map)
+
+end locally_trivial_fiber_bundle
+
+end fiber_bundle

@@ -391,6 +391,8 @@ variables {X Y : Type} [topology X] [topology Y]
 
 def cts (f : X → Y) := ∀ V ∈ opens Y, f ⁻¹' V ∈ opens X
 
+lemma cts.id : cts (@id X) := begin intros V hV, exact hV, end
+
 lemma cts_of_comp {Z : Type} [topology Z] (f : X → Y) (g : Y → Z) :
   cts f → cts g → cts (g ∘ f) :=
 begin
@@ -591,7 +593,7 @@ begin
   tauto,
 end
 
-lemma cts_map_to_prod {Z : Type} (TZ : topology Z) (f : Z → X × Y) :
+lemma cts_map_to_prod {Z : Type} [topology Z] (f : Z → X × Y) :
   cts f ↔ cts (prod.fst ∘ f) ∧ cts (prod.snd ∘ f) :=
 begin
   split, intro hf, split;
