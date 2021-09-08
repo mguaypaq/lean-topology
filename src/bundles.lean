@@ -365,26 +365,28 @@ We distinguish between:
       φ  : equiv (B × fiber) E,
       hφ : π ∘ φ = prod.fst
 
-These aren't the same thing. (In real life, this occurs when a bundle can
-be trivialized in many ways. Think of picking a basis of a vector space.
+These aren't the same thing of course. (In real life, this occurs when a bundle
+can be trivialized in many ways. Think of picking a basis of a vector space.
 For trivial bundles (1), the choice is already made. Otherwise it's data.)
 
-Warning: The pullback of a trivial bundle along f : B' → B is trivial, in
-fact *canonically* trivial (we will write down a natural trivialization).
+Warning: The pullback of a trivial bundle B × fiber along f : B' → B is trivializable,
+in fact *canonically* trivializable (we will write down a natural trivialization).
 But it is not *definitionally* trivial. This is because it has the form
 
       {(b, f b, v)} ⊆ B' × B × fiber
 
-rather than being B' × fiber. Notice that this is (almost) defeq to (graph of f) × fiber.
+rather than being B' × fiber, with the definition we give in terms of fiber products.
+It is (almost) defeq to (graph of f) × fiber.
 
 Our approach:
 
-a) Define trivial bundle
-b) Define trivialization of bundle (:= equivalence of the bundle with a trivial bundle)
-c) Construct a *canonical* trivialization of the pullback of a trivial bundle.
+a) Define bundles, bundle maps and functorial pullbacks of bundle maps
+   (in particular of equivalences).
+b) Define trivial bundle
+c) Define trivialization of bundle (:= equivalence of the bundle with a trivial bundle)
+d) Construct a *canonical* trivialization of the pullback of a trivial bundle.
    (This uses the notion of graph of a function.)
-d) Construct functorial pullbacks of bundle maps (in particular of equivalences (b)).
-e) Combine (c) and (d) to "pull back trivializations". 🎉
+e) Combine (a) and (d) to "pull back trivializations". 🎉
 -/
 
 -- Bundles and bundle maps.
