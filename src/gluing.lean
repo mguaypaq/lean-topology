@@ -14,15 +14,6 @@ instance cover_to_parts (I X : Type) : has_coe_to_fun (cover I X) :=
   {F   := λ _, I → set X,
    coe := λ U, U.part}
 
-@[reducible]
-def pullback_cover {I X Y : Type} (f : X → Y) (U : cover I Y) : cover I X :=
-  ⟨ λ i, f ⁻¹' (U i),
-    λ x, U.hx (f x)⟩
-infix `⁻¹c`:110 := pullback_cover
-
-lemma pullback_cover.comp {I X Y Z : Type} (f : X → Y) (g : Y → Z)
-  (U : cover I Z) : (g ∘ f) ⁻¹c U = f ⁻¹c (g ⁻¹c U) := by split
-
 lemma cover_set_eq {I X : Type} (U : cover I X) (A : set X) :
   A = ⋃₀ {A' | ∃ j, A' = (U j) ∩ A} :=
 begin
@@ -85,6 +76,15 @@ end
 
 section refine
 
+@[reducible]
+def pullback_cover {I X Y : Type} (f : X → Y) (U : cover I Y) : cover I X :=
+  ⟨ λ i, f ⁻¹' (U i),
+    λ x, U.hx (f x)⟩
+infix `⁻¹c`:110 := pullback_cover
+
+lemma pullback_cover.comp {I X Y Z : Type} (f : X → Y) (g : Y → Z)
+  (U : cover I Z) : (g ∘ f) ⁻¹c U = f ⁻¹c (g ⁻¹c U) := by split
+
 variables
   (I J X Y : Type)
   (CI : cover I X)
@@ -92,7 +92,7 @@ variables
   (gl : gluing_data I X Y)
 
 def refine : cover (I × J) X :=
- ⟨λ ⟨i, j⟩, (CI.part i) ∩ (CJ.part j),
+ ⟨λ ij, (CI.part ij.1) ∩ (CJ.part ij.2),
   λ x, let ⟨i, hxi⟩ := CI.hx x in
        let ⟨j, hxj⟩ := CJ.hx x in
        ⟨⟨i, j⟩, ⟨hxi, hxj⟩⟩⟩
@@ -154,6 +154,17 @@ begin
   apply union, rintros A' ⟨i, hi⟩, rw hi, exact hA i,
 end
 
+def open_cover.refine {J : Type} (CI : open_cover I X) (CJ : open_cover J X) :
+  open_cover (I × J) X :=
+  { part  := (refine I J X CI CJ).part,
+    hx    := (refine I J X CI CJ).hx,
+    hopen := λ ⟨i, j⟩, inter₂ _ _ (CI.hopen i) (CJ.hopen j),
+  }
+/-  ⟨λ ⟨i, j⟩, (CI i) ∩ (CJ j),
+  λ x, let ⟨i, hxi⟩ := CI.to_cover.hx x.1 in
+       let ⟨j, hxj⟩ := CJ.to_cover.hx x.2 in
+       ⟨⟨i, j⟩, ⟨hxi, hxj⟩⟩⟩
+-/
 variables {Y : Type} [topology Y]
   (U : open_cover I X) (gl : cts_gluing_data I X Y)
   (f g : X → Y)

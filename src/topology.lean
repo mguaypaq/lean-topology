@@ -183,6 +183,35 @@ begin
 end
 -/
 
+def discrete_topology (X : Type) : topology X :=
+  ⟨set.univ, by trivial, by trivial, λ _ _ _ _, trivial, λ _ _, trivial⟩
+def indiscrete_topology {X : Type} : topology X :=
+  ⟨{∅, set.univ}, set.mem_insert ∅ {set.univ}, or.inr (set.mem_singleton set.univ),
+  begin intros U V hU hV, cases hV,
+    rw hV, left, exact set.inter_empty U,
+    simp at hV, rw hV, have : U.inter set.univ = U ∩ set.univ, refl, rw this,
+    rw set.inter_univ U, exact hU, end,
+  begin intros sU hsU, by_cases (set.univ ∈ sU),
+    right, simp, ext, simp, exact ⟨set.univ, h, trivial⟩,
+    left, simp, intros s hs, cases hsU hs, exact h_1, exfalso,
+    simp at h_1, rw h_1 at hs, exact h hs, end⟩
+
+
+inductive point : Type | p : point
+lemma point.is_singleton (x : point) : x = point.p :=
+  by {induction x, refl}
+lemma point.subset (s : set point) : s = ∅ ∨ s = set.univ :=
+  begin by_cases point.p ∈ s,
+    right, ext, simp, rw point.is_singleton x, exact h,
+    left, ext, simp, rw point.is_singleton x, exact h, end
+@[simp] def map_to_point (X : Type) : X → point := λ _, point.p  
+@[simp] def map_to_point.val (X : Type) (f : X → point) (x : X) : f x = point.p :=
+  by rw point.is_singleton (f x)
+def map_to_point.unq (X : Type) (f : X → point) : f = map_to_point X :=
+  by {funext, rw point.is_singleton (f x), refl}
+instance topology_point : topology point := discrete_topology point
+
+
 end topology
 
 open topology
@@ -445,16 +474,16 @@ begin
   intros W hW, exact hf W hW.1,
 end
 
-example {X Y : Type} (f : X → Y) (A : set X) (B : set Y) :
-  f '' A ⊆ B ↔ ∀ a, a ∈ A → f a ∈ B :=
-begin
-  exact set.maps_to'.symm
-end
-
 def open_immersion (f : X → Y) := cts f ∧ function.injective f 
   ∧ f '' set.univ ∈ opens Y
 
 def open_map (f : X → Y) := ∀ U ∈ opens X, f '' U ∈ opens Y
+
+lemma map_to_point_cts : cts (map_to_point X) :=
+begin
+  intros V hV, unfold set.preimage, simp, cases point.subset V; rw h,
+  exact empty_open, exact univ_open,
+end
 
 end cts_fn
 
@@ -537,6 +566,11 @@ instance topologies_to_product_topology :
   has_coe ((topology X) × (topology Y)) (topology (X × Y)) :=
   ⟨λ T_pair, product_topology⟩
 
+lemma product_topology.basis :
+  basis {U : set (X × Y) | ∃ (UX ∈ opens X) (UY ∈ opens Y),
+    (set.prod UX UY) = U} :=
+  basis_is_basis_of_generated (pre_basis_for_product_topology)
+
 lemma basis_around_point
   (U : set (X × Y))
   (hU : U ∈ opens (X × Y))
@@ -600,18 +634,12 @@ begin
   apply cts_of_comp,
     exact hf, apply prod_fst_cts,
     exact hf, apply prod_snd_cts,
-  intros hf U hU,
-  rw open_if_open_around_mem, intros z hz,
-  obtain ⟨W, ⟨UX, hUX, UY, hUY, hprod⟩, ⟨hx1, hx2⟩⟩ := hU (f z) hz,
-  use ((prod.fst ∘ f) ⁻¹' UX) ∩ ((prod.snd ∘ f) ⁻¹' UY),
-  split, split, apply inter₂,
-    apply hf.1, exact hUX,
-    apply hf.2, exact hUY,
-  simp, rw ← hprod at hx1, exact hx1,
-  rw set.preimage_comp, rw @set.preimage_comp _ _ _ f prod.snd,
-  rw ← set.preimage_inter, apply set.preimage_mono,
-  rw ← hprod at hx2,
-  apply set.subset.trans _ hx2, tauto,
+  intro hf,
+  rw cts_iff_cts_on_basis f _ product_topology.basis,
+  simp, rintros V UX hUX UY hUY h, rw ← h,
+  have : f ⁻¹' (UX.prod UY) = ((prod.fst ∘ f) ⁻¹' UX) ∩ ((prod.snd ∘ f) ⁻¹' UY),
+    ext z, exact iff.rfl, rw this,
+  apply inter₂, apply hf.1 _ hUX, apply hf.2 _ hUY,
 end
 
 lemma prod_of_cts {Z W : Type} [topology Z] [topology W]
@@ -626,6 +654,44 @@ begin
   suffices key : (set.prod set.univ (g ⁻¹' V)) ∈ opens _,
   convert key, ext, simp,
   apply prod_of_opens_is_open, exact univ_open, exact hg V hV,
+end
+
+def diag (X : Type) [topology X] (x : X) : X × X := (x, x)
+lemma diag.cts (X : Type) [topology X] : cts (diag X) :=
+begin
+  rw cts_map_to_prod, exact ⟨cts.id, cts.id⟩,
+end
+
+def prod_point_right (X : Type) : X × point ≃ X :=
+{ to_fun    := prod.fst,
+  inv_fun   := λ x, ⟨x, point.p⟩,
+  left_inv  := begin rintro ⟨x, y⟩, simp, rw point.is_singleton y, end,
+  right_inv := λ x, rfl }
+
+lemma prod_point_right.cts (X : Type) [topology X] :
+  cts (prod_point_right X).to_fun := prod_fst_cts
+
+lemma prod_point_right.inv_cts (X : Type) [topology X] :
+  cts (prod_point_right X).inv_fun :=
+begin
+  rw cts_map_to_prod, split,
+  exact cts.id, exact map_to_point_cts,
+end
+
+def prod_point_left (X : Type) : point × X ≃ X :=
+{ to_fun    := prod.snd,
+  inv_fun   := λ x, ⟨point.p, x⟩,
+  left_inv  := begin rintro ⟨y, x⟩, simp, rw point.is_singleton y, end,
+  right_inv := λ x, rfl }
+
+lemma prod_point_left.cts (X : Type) [topology X] :
+  cts (prod_point_left X).to_fun := prod_snd_cts
+
+lemma prod_point_left.inv_cts (X : Type) [topology X] :
+  cts (prod_point_left X).inv_fun :=
+begin
+  rw cts_map_to_prod, split,
+  exact map_to_point_cts, exact cts.id,
 end
 
 end product_topology
@@ -787,6 +853,12 @@ lemma coe_cts {U : set X} : cts (coe : U → X) :=
 begin
   intros V hV, exact ⟨V, hV, rfl⟩,
 end
+
+lemma coe_cts' {p : X → Prop} : cts (coe : (subtype p) → X) :=
+begin
+  intros V hV, exact ⟨V, hV, rfl⟩,
+end
+
 
 lemma restrict_cod_cts {Y : Type} [topology Y] {f : X → Y}
   {U : set Y} {hU : ∀ (x : X), U (f x)} (hf : cts f) :
