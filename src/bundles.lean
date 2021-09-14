@@ -130,22 +130,6 @@ def bundle_equiv.trans {B : Type} {E F G : bundle B}
                              φ'.right_inv], }
 infix `≃∘≃`:110 := bundle_equiv.trans
 
--- some other lemmas I've needed
-
-def prod_equiv_right {X X' : Type} (φ : equiv X X') (Y : Type) :
-  equiv (X × Y) (X' × Y) :=
-  { to_fun := prod.map φ id,
-    inv_fun := prod.map φ.inv_fun id,
-    left_inv := λ _, by simp,
-    right_inv := λ _, by simp, }
-
-def prod_equiv_left (X : Type) {Y Y' : Type} (φ : equiv Y Y') :
-  equiv (X × Y) (X × Y') :=
-  { to_fun := prod.map id φ,
-    inv_fun := prod.map id φ.inv_fun,
-    left_inv := λ _, by simp,
-    right_inv := λ _, by simp, }
-
 section pullback
 -- Pullbacks. Closely related to fiber products.
 
@@ -164,8 +148,6 @@ def pullback_map {B' B : Type} (f : B' → B) {E F : bundle B} (φ : E →→ F)
   h := begin ext ⟨⟨e', b'⟩, h⟩, refl, end,
 }
 infix `↖*`:110 := pullback_map
-
---variables {B' B : Type} (f : B' → B) {E F G : bundle B} (φ' : F →→ G) (φ : E →→ F)
 
 @[simp]
 lemma pullback_map.def {B' B : Type} (f : B' → B) {E F G : bundle B}
@@ -211,6 +193,7 @@ section trivial_bundle
     π     := prod.fst }
 infix `××`:110 := trivial_bundle
 
+@[reducible]
 def trivial_equiv_pullback_from_pt (B fiber : Type) :
   B ×× fiber ≃≃ (topology.map_to_point B) ** (trivial_bundle topology.point fiber) :=
   bundle_equiv.mk'
@@ -223,117 +206,7 @@ def trivial_equiv_pullback_from_pt (B fiber : Type) :
       )
   rfl rfl
 
-/-
-@[reducible]
-def fn_graph {X Y : Type} (f : X → Y) := {pair : X × Y // f pair.fst = pair.snd}
-
-example {X Y : Type} (f : X → Y) : fn_graph f = id ×f f := rfl
-
-def domain_equiv_graph {X Y : Type} (f : X → Y) :
-  equiv X (id ×f f) :=
-  { to_fun := (λ x, ⟨⟨x, f x⟩, rfl⟩),
-    inv_fun := (λ ⟨⟨x, y⟩, h⟩, x),
-    left_inv := λ x, rfl,
-    right_inv := λ ⟨⟨x, y⟩, h⟩, begin simp, exact ⟨rfl, h⟩, end,}
-
-@[simp]
-def graph_equiv_pullback_of_trivial {B B' : Type} (fiber : Type) (f : B' → B) :
-  equiv ((id ×f f) ×× fiber).space (f ** (B ×× fiber)).space :=
-  { to_fun := λ x, ⟨⟨x.1.val.1, x.1.val.2, x.2⟩, x.1.prop⟩,
-    --to_fun := λ ⟨⟨⟨x, y⟩, h⟩, v⟩, ⟨⟨x, y, v⟩, h⟩,
-    inv_fun := λ x, ⟨⟨⟨x.val.1, x.val.2.1⟩, x.prop⟩, x.val.2.2⟩,
-    --inv_fun := λ ⟨⟨x, y, v⟩, h⟩, ⟨⟨⟨x, y⟩, h⟩, v⟩,
-    left_inv := λ ⟨⟨⟨x, y⟩, h⟩, v⟩, rfl,
-    right_inv := λ ⟨⟨x, y, v⟩, h⟩, rfl }
--/
-
 end trivial_bundle
-
-section cts_bundle
-
-/-
-lemma domain_equiv_graph.cts {X Y : Type} [topology X] [topology Y]
-  {f : X → Y} (hf : cts f) : cts (domain_equiv_graph f).to_fun :=
-begin
-  apply restrict_cod_cts,
-  rw cts_map_to_prod,
-  exact ⟨cts.id, hf⟩,
-end
-
-lemma domain_equiv_graph.inv_cts {X Y : Type} [topology X] [topology Y]
-  {f : X → Y} (hf : cts f) : cts (domain_equiv_graph f).inv_fun :=
-begin
-  have : (domain_equiv_graph f).inv_fun = (prod.fst ∘ (coe : (id ×f f) → X × Y)),
-    ext ⟨⟨x, y⟩, h⟩, refl,
-  rw this,
-  apply cts_of_comp _ _ coe_cts prod_fst_cts,
-end
-
--- This seems annoying.
-lemma graph_equiv_pullback_of_trivial.cts
-  {B B' : Type} [topology B] [topology B']
-  {fiber : Type} [topology fiber] {f : B' → B} (hf : cts f) :
-  cts (graph_equiv_pullback_of_trivial fiber f).to_fun :=
-begin
-  set g : (B' × B) × fiber → B' × (B × fiber) :=
-    λ x, ⟨x.1.1, x.1.2, x.2⟩ with hg,
-  have key1 :
-    (graph_equiv_pullback_of_trivial fiber f).to_fun =
-    @restrict_cod _ _
-      (g ∘ 
-      (coe : (fn_graph f ×× fiber).space → (B' × B) × fiber))
-      (λ (x : B' × (B × fiber)), f x.fst = x.snd.fst)
-      begin rintro ⟨⟨⟨x, y⟩, h⟩, v⟩, simp, exact h, end,
-    ext ⟨⟨⟨x, y⟩, h⟩, v⟩, simp, refl, refl, rw key1,
-  apply restrict_cod_cts _,
-  apply cts_of_comp _ g _ _,
-  have : (coe : (fn_graph f ×× fiber).space → (B' × B) × fiber)
-    = prod.map (@coe (fn_graph f) (B' × B) _) (@id fiber),
-  ext ⟨⟨⟨x, y⟩, h⟩, v⟩, refl, refl, refl, rw this,
-  
-  apply prod_of_cts,
-  exact coe_cts, exact cts.id,
-  
-  rw cts_map_to_prod, rw cts_map_to_prod,
-  split, change cts (prod.fst ∘ prod.fst), exact cts_of_comp _ _ prod_fst_cts prod_fst_cts,
-  split, change cts (prod.snd ∘ prod.fst), exact cts_of_comp _ _ prod_fst_cts prod_snd_cts,
-  exact prod_snd_cts,
-end
-
--- This too.
-lemma graph_equiv_pullback_of_trivial.inv_cts
-  {B B' : Type} [topology B] [topology B']
-  {fiber : Type} [topology fiber] {f : B' → B} (hf : cts f) :
-  cts (graph_equiv_pullback_of_trivial fiber f).inv_fun :=
-begin
-  rw cts_map_to_prod, split,
-  have key1 :
-    prod.fst ∘ (graph_equiv_pullback_of_trivial fiber f).inv_fun =
-    @restrict_cod _ _
-      ((λ x, ⟨x.1, x.2.1⟩ : B' × B × fiber → (B' × B)) ∘ 
-      (coe : (f ** (B ×× fiber)).space → B' × B × fiber))
-      (λ (x : B' × B), f x.fst = x.snd)
-      begin rintro ⟨⟨x, y, v⟩, h⟩, simp, exact h, end,
-    ext ⟨⟨x, y, v⟩, h⟩, refl, refl, rw key1,
-  apply restrict_cod_cts,
-  apply cts_of_comp _ _ coe_cts,
-  rw cts_map_to_prod, split,
-  exact prod_fst_cts,
-  change cts (prod.fst ∘ prod.snd),
-  exact cts_of_comp _ _ prod_snd_cts prod_fst_cts,
-  
-  have key2 :
-    prod.snd ∘ (graph_equiv_pullback_of_trivial fiber f).inv_fun =
-      ((λ x, x.2.2 : B' × B × fiber → fiber) ∘ 
-      (coe : (f ** (B ×× fiber)).space → B' × B × fiber)),
-    ext ⟨⟨x, y, v⟩, h⟩, refl, rw key2,
-  apply cts_of_comp _ _ coe_cts,
-  apply cts_of_comp _ _ prod_snd_cts prod_snd_cts,
-end
--/
-
-end cts_bundle
-
 
 section trivialization
 -- Trivializations.
@@ -362,7 +235,7 @@ def trivialization.pullback' {B B' : Type} (E : bundle B) (fiber : Type)
 -/
 
 -- Pullback of a *trivialization* along any map. 🎉
-def trivialization.pullback {B B' : Type} (E : bundle B) (fiber : Type)
+def trivialization.pullback {B B' : Type} {E : bundle B} {fiber : Type}
   (f : B' → B) (triv : trivialization E fiber) :
   trivialization (f ** E) fiber :=
     trivial_equiv_pullback_from_pt B' fiber
@@ -377,10 +250,10 @@ def trivialization.pullback {B B' : Type} (E : bundle B) (fiber : Type)
 --   ≃≃ f ** E
 -- As desired.
 
-def trivialization.subset {B : Type} (U : set B) (E : bundle B) (fiber : Type)
+def trivialization.subset {B : Type} (U : set B) {E : bundle B} {fiber : Type}
   (triv : trivialization E fiber) :
   trivialization ((coe : U → B) ** E) fiber :=
-  trivialization.pullback E fiber coe triv
+  trivialization.pullback coe triv
 
 -- Given a trivialization over A ⊆ B, obtain a trivialization over A ∩ V.
 -- (By pulling back along A ∩ V → A.)
@@ -420,5 +293,206 @@ example {J : Type} (V : open_cover J B) (h : cts E.π)
   }
 
 end locally_trivial_fiber_bundle
+
+section cts_bundle
+
+
+-- Bundle maps
+
+variables {B : Type} --[topology B]
+
+lemma bundle_map.id.cts  (E : bundle B) [topology E.space] : cts (bundle_map.id E) := cts.id
+
+variables {E F G : bundle B} [topology E.space] [topology F.space] [topology G.space] 
+
+lemma bundle_map.comp.cts {φ' : F →→ G} {φ : E →→ F} (hφ' : cts φ'.map) (hφ : cts φ.map) :
+  cts (φ' ∘∘ φ).map := cts_of_comp _ _ hφ hφ'
+
+-- Bundle equivalences
+
+lemma bundle_equiv.symm.cts {φ : E ≃≃ F} (hφ_inv : cts φ.inv_bundle_map) :
+  cts φ.symm.to_bundle_map := hφ_inv
+lemma bundle_equiv.symm.inv_cts {φ : E ≃≃ F} (hφ : cts φ.to_bundle_map) :
+  cts φ.symm.inv_bundle_map := hφ
+
+lemma bundle_equiv.trans.cts {φ : E ≃≃ F} {φ' : F ≃≃ G}
+  (hφ'_cts : cts φ'.to_bundle_map) (hφ_cts : cts φ.to_bundle_map):
+  cts (bundle_equiv.trans φ φ').to_bundle_map.map := bundle_map.comp.cts hφ'_cts hφ_cts
+lemma bundle_equiv.trans.inv_cts {φ : E ≃≃ F} {φ' : F ≃≃ G}
+  (hφ'_inv_cts : cts φ'.inv_bundle_map) (hφ_inv_cts : cts φ.inv_bundle_map):
+  cts (bundle_equiv.trans φ φ').inv_bundle_map.map := bundle_map.comp.cts hφ_inv_cts hφ'_inv_cts
+
+lemma bundle_equiv.mk'.cts {φ : E.space ≃ F.space}
+  {hφ : F.π ∘ φ.to_fun = E.π} {hφ_inv : E.π ∘ φ.inv_fun = F.π} (hφ_cts : cts φ) :
+  cts (bundle_equiv.mk' φ hφ hφ_inv).to_bundle_map := hφ_cts
+lemma bundle_equiv.mk'.inv_cts {φ : E.space ≃ F.space}
+  {hφ : F.π ∘ φ.to_fun = E.π} {hφ_inv : E.π ∘ φ.inv_fun = F.π} (hφ_inv_cts : cts φ.inv_fun) :
+  cts (bundle_equiv.mk' φ hφ hφ_inv).inv_bundle_map := hφ_inv_cts
+
+-- Pullback maps and equivs
+
+variables {B' : Type} (f : B' → B) [topology B] [topology B'] --(hf : cts f)
+
+lemma pullback_map.cts {φ : E →→ F} (hφ : cts φ.map) :
+  cts (f ↖* φ).map :=
+begin
+  apply fiber_product.exact.map.cts,
+  exact fiber_product.fst.cts _ _,
+  apply cts_of_comp _ φ.map _ hφ,
+  exact fiber_product.snd.cts _ _,
+end
+
+lemma pullback_bundle_equiv.cts {φ : E ≃≃ F} (hφ_cts : cts φ.to_bundle_map) :
+  cts (f ↖≃ φ).to_bundle_map := pullback_map.cts f hφ_cts
+
+lemma pullback_bundle_equiv.inv_cts {φ : E ≃≃ F} (hφ_inv_cts : cts φ.inv_bundle_map) :
+  cts (f ↖≃ φ).inv_bundle_map := pullback_map.cts f hφ_inv_cts
+
+variables {B'' : Type} [topology B''] (g : B'' → B')
+
+lemma pullback_comp.cts (hf : cts f) : cts (pullback_comp g f E).to_bundle_map := 
+  bundle_equiv.mk'.cts (fiber_product.comp_base.cts _ _ _ hf)
+
+lemma pullback_comp.inv_cts (hg : cts g) : cts (pullback_comp g f E).inv_bundle_map :=
+  bundle_equiv.mk'.inv_cts (fiber_product.comp_base.inv_cts _ _ _ hg)
+
+
+-- Trivializations
+
+variables (fiber : Type) [topology fiber]
+
+lemma trivial_equiv_pullback_from_pt.cts :
+  cts (trivial_equiv_pullback_from_pt B fiber).to_bundle_map :=
+begin
+  apply bundle_equiv.mk'.cts _,
+  apply restrict_cod_cts _,
+  apply prod_equiv_left.cts,
+  exact prod_point_left.inv_cts fiber,
+  exact prod_point_left.cts fiber,
+end
+
+lemma trivial_equiv_pullback_from_pt.inv_cts :
+  cts (trivial_equiv_pullback_from_pt B fiber).inv_bundle_map :=
+begin
+  apply bundle_equiv.mk'.inv_cts _,
+  apply cts_of_comp _ _ coe_cts,
+  apply prod_equiv_left.cts,
+  exact prod_point_left.cts fiber,
+  exact prod_point_left.inv_cts fiber,
+end
+
+lemma trivialization.pullback.cts (hf : cts f) {triv : trivialization E fiber}
+  (htriv_cts : cts triv.to_bundle_map) :
+  cts (trivialization.pullback f triv).to_bundle_map :=
+begin
+  apply bundle_equiv.trans.cts _ _, by apply_instance,
+    apply bundle_equiv.symm.cts,
+    apply pullback_map.cts,
+    apply bundle_equiv.trans.inv_cts _ _, by apply_instance,
+      apply trivial_equiv_pullback_from_pt.inv_cts,
+      exact htriv_cts, -- assumption used!!
+    apply bundle_equiv.trans.cts _ _, by apply_instance,
+      apply bundle_equiv.symm.cts,
+      apply pullback_comp.inv_cts, exact hf, -- assumption used!!
+      apply trivial_equiv_pullback_from_pt.cts,
+end
+
+lemma trivialization.pullback.inv_cts {triv : trivialization E fiber} 
+  (htriv_inv_cts : cts triv.inv_bundle_map) :
+  cts (trivialization.pullback f triv).inv_bundle_map :=
+begin
+  apply bundle_equiv.trans.inv_cts _ _, by apply_instance,
+    apply bundle_equiv.symm.inv_cts,
+    apply pullback_map.cts,
+    apply bundle_equiv.trans.cts _ _, by apply_instance,
+      apply trivial_equiv_pullback_from_pt.cts,
+      exact htriv_inv_cts, -- assumption used!!
+    apply bundle_equiv.trans.inv_cts _ _, by apply_instance,
+      apply bundle_equiv.symm.inv_cts,
+      apply pullback_comp.cts, apply map_to_point_cts,
+      apply trivial_equiv_pullback_from_pt.inv_cts,
+end
+
+
+/-
+structure cts_bundle (B : Type) [topology B] :=
+  (space : Type)
+  (top : topology space)
+  (π : space → B)
+  (hπ : cts π)
+
+instance cts_bundle_to_bundle (B : Type) [topology B] :
+  has_coe (cts_bundle B) (bundle B) := ⟨λ E, ⟨E.space, E.π⟩⟩
+
+attribute [instance] cts_bundle.top
+
+variables {B : Type} [topology B] (E F : cts_bundle B)
+
+structure cts_bundle_map :=
+  (map : E.space → F.space)
+  (h : F.π ∘ map = E.π)
+  (map_cts : cts map)
+
+instance cts_bundle_map_to_bundle_map : has_coe (cts_bundle_map E F) (@bundle_map B ↑E ↑F) :=
+  ⟨λ φ, ⟨φ.map, φ.h⟩⟩
+
+structure cts_bundle_equiv :=
+  (map  : cts_bundle_map E F)
+  (inv_map : cts_bundle_map F E)
+  (left_inv : ↑inv_map ∘∘ ↑map = bundle_map.id ↑E)
+  (right_inv : ↑map ∘∘ ↑inv_map = bundle_map.id ↑F) :
+  
+def cts_bundle_equiv.mk' {B : Type} [topology B] {E F : cts_bundle B}
+  (map  : cts_bundle_map E F)
+  (inv_map : cts_bundle_map F E)
+  (left_inv : inv_map.to_bundle_map ∘∘ map.to_bundle_map = bundle_map.id E.to_bundle)
+  (right_inv : map.to_bundle_map ∘∘ inv_map.to_bundle_map = bundle_map.id F.to_bundle) :
+  cts_bundle_equiv E F :=
+  { to_bundle_equiv :=
+    { to_bundle_map := map.to_bundle_map,
+       inv_bundle_map := inv_map.to_bundle_map,
+      left_inv := left_inv,
+      right_inv := right_inv },
+     map_cts := map.map_cts,
+     inv_cts := inv_map.map_cts}
+
+def cts_bundle_equiv.to_cts_bundle_map {B : Type} [topology B] {E F : cts_bundle B} 
+  (φ : cts_bundle_equiv E F) : cts_bundle_map E F := ⟨φ.to_bundle_map, φ.map_cts⟩
+
+def cts_bundle_equiv.inv_cts_bundle_map {B : Type} [topology B] {E F : cts_bundle B} 
+  (φ : cts_bundle_equiv E F) : cts_bundle_map F E := ⟨φ.inv_bundle_map, φ.inv_cts⟩
+
+def cts_bundle_map.id {B : Type} [topology B] (E : cts_bundle B) : cts_bundle_map E E :=
+  { map_cts := cts.id, ..(bundle_map.id E.to_bundle) }
+
+def cts_bundle_map.comp {B : Type}
+
+-- What is the most appropriate / efficient thing to do here?
+
+/-
+
+structure cts_bundle (B : Type) [topology B] extends (bundle B) :=
+  (top : topology to_bundle.space)
+  (hπ : cts to_bundle.π)
+
+structure cts_bundle_map {B : Type} [topology B] {E F : cts_bundle B} extends
+  (bundle_map E.to_bundle F.to_bundle) :=
+  (hcts : @cts _ _ E.top F.top to_bundle_map.map)
+
+...
+
+But then we have to start explicitly referring to the topology everywhere.
+
+Or: just assume [topology t] for all relevant spaces t and (hf: cts f) for
+all relevant f?
+
+Or: put back in an assumption (hf : adjective f) throughout, where the adjective is part
+of the data of the bundle.
+
+
+-/
+-/
+
+end cts_bundle
 
 end fiber_bundle

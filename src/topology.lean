@@ -642,7 +642,7 @@ begin
   apply inter₂, apply hf.1 _ hUX, apply hf.2 _ hUY,
 end
 
-lemma prod_of_cts {Z W : Type} [topology Z] [topology W]
+lemma prod_map_cts {Z W : Type} [topology Z] [topology W]
   (f : X → Z) (g : Y → W) (hf : cts f) (hg : cts g) :
   cts (prod.map f g) :=
 begin
@@ -662,21 +662,21 @@ begin
   rw cts_map_to_prod, exact ⟨cts.id, cts.id⟩,
 end
 
+def prod_equiv_left (X : Type) {Y Y' : Type} (φ : equiv Y Y') :
+  equiv (X × Y) (X × Y') := functor.map_equiv (prod X) φ
+
+def prod_equiv_right {X X' : Type} (φ : equiv X X') (Y : Type) :
+  equiv (X × Y) (X' × Y) :=
+  equiv.trans
+    (equiv.trans (equiv.prod_comm _ _)
+    (functor.map_equiv (prod Y) φ))
+    (equiv.prod_comm _ _)
+
 def prod_point_right (X : Type) : X × point ≃ X :=
 { to_fun    := prod.fst,
   inv_fun   := λ x, ⟨x, point.p⟩,
   left_inv  := begin rintro ⟨x, y⟩, simp, rw point.is_singleton y, end,
   right_inv := λ x, rfl }
-
-lemma prod_point_right.cts (X : Type) [topology X] :
-  cts (prod_point_right X).to_fun := prod_fst_cts
-
-lemma prod_point_right.inv_cts (X : Type) [topology X] :
-  cts (prod_point_right X).inv_fun :=
-begin
-  rw cts_map_to_prod, split,
-  exact cts.id, exact map_to_point_cts,
-end
 
 def prod_point_left (X : Type) : point × X ≃ X :=
 { to_fun    := prod.snd,
@@ -684,15 +684,31 @@ def prod_point_left (X : Type) : point × X ≃ X :=
   left_inv  := begin rintro ⟨y, x⟩, simp, rw point.is_singleton y, end,
   right_inv := λ x, rfl }
 
+lemma prod_equiv_left.cts (X : Type) {Y Y' : Type} [topology X] [topology Y] [topology Y']
+  (φ : equiv Y Y') (hφ : cts φ) (hφ' : cts φ.symm) : cts (prod_equiv_left X φ) :=
+  prod_map_cts _ _ cts.id hφ
+lemma prod_equiv_left.inv_cts (X : Type) {Y Y' : Type} [topology X] [topology Y] [topology Y']
+  (φ : equiv Y Y') (hφ : cts φ) (hφ' : cts φ.symm) : cts (prod_equiv_left X φ).symm :=
+  prod_map_cts _ _ cts.id hφ'
+lemma prod_equiv_right.cts (X : Type) {Y Y' : Type} [topology X] [topology Y] [topology Y']
+  (φ : equiv Y Y') (hφ : cts φ) (hφ' : cts φ.symm) : cts (prod_equiv_right φ X) :=
+  prod_map_cts _ _ hφ cts.id
+lemma prod_equiv_right.inv_cts (X : Type) {Y Y' : Type} [topology X] [topology Y] [topology Y']
+  (φ : equiv Y Y') (hφ : cts φ) (hφ' : cts φ.symm) : cts (prod_equiv_right φ X).symm :=
+  prod_map_cts _ _ hφ' cts.id
+
+
+lemma prod_point_right.cts (X : Type) [topology X] :
+  cts (prod_point_right X).to_fun := prod_fst_cts
+lemma prod_point_right.inv_cts (X : Type) [topology X] :
+  cts (prod_point_right X).inv_fun :=
+  (cts_map_to_prod _).mpr ⟨cts.id, map_to_point_cts⟩
 lemma prod_point_left.cts (X : Type) [topology X] :
   cts (prod_point_left X).to_fun := prod_snd_cts
-
 lemma prod_point_left.inv_cts (X : Type) [topology X] :
   cts (prod_point_left X).inv_fun :=
-begin
-  rw cts_map_to_prod, split,
-  exact map_to_point_cts, exact cts.id,
-end
+  (cts_map_to_prod _).mpr ⟨map_to_point_cts, cts.id⟩
+
 
 end product_topology
 

@@ -133,8 +133,9 @@ lemma fiber_product.sound.cts'
   cts_of_comp _ _ (fiber_product.snd.cts π f) hπ
 
 lemma fiber_product.exact.map.cts {Z : Type} [topology Z] 
-  (πZ : Z → B') (fZ : Z → E) (πZ_cts : cts πZ) (fZ_cts : cts fZ)
-  (h : f ∘ πZ = π ∘ fZ) :
+  {πZ : Z → B'} {fZ : Z → E} {h : f ∘ πZ = π ∘ fZ}
+  (πZ_cts : cts πZ) (fZ_cts : cts fZ)
+   :
   cts (fiber_product.exact.map π f πZ fZ h) :=
 begin
   apply restrict_cod_cts,
@@ -146,15 +147,21 @@ lemma fiber_product.ext.cts
   cts (fiber_product.ext π f pi eff pi_eq eff_eq) :=
   subtype_map_cts cts.id
 
-lemma fiber_product.comp_base.cts
-  (hπ : cts π) (hf : cts f) (hf' : cts f') :
-  cts (fiber_product.comp_base π f f').to_fun :=
+lemma fiber_product.comp_base.cts (hf : cts f) : cts (fiber_product.comp_base π f f').to_fun :=
 begin
   apply fiber_product.exact.map.cts,
   apply fiber_product.fst.cts,
   simp,
   apply cts_of_comp, apply cts_of_comp, apply cts_of_comp,
   exact coe_cts, exact prod_snd_cts, exact coe_cts, exact prod_snd_cts,
+end
+
+lemma fiber_product.comp_base.inv_cts (hf' : cts f') : cts (fiber_product.comp_base π f f').inv_fun :=
+begin
+  apply fiber_product.exact.map.cts,
+  apply fiber_product.fst.cts,
+  apply restrict_cod_cts,
+  exact cts_of_comp _ _ coe_cts (prod_map_cts _ _ hf' cts.id),
 end
 
 end cts_fiber_product
